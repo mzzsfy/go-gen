@@ -1,7 +1,7 @@
 package register
 
 var (
-    reg map[string]func()
+    reg = map[string]func(){}
 )
 
 func Register(name string, fn func()) {
