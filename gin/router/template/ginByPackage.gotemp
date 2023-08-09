@@ -1,0 +1,34 @@
+//This is an auto-generated file, please do not edit it manually
+//这是自动生成的文件,请不要手动编辑
+
+package routers
+
+import (
+    "{{ .PackageBaseName }}/routers/reg"
+)
+
+//function
+func init() {
+    reg.RegFn(func() {
+{{- range $f := .Functions }}
+{{- range $s := $f.Paths}}
+        reg.DoRegisterGinRouter("{{ $f.GroupPath }}", {{ $.PackageName }}.{{ $f.Name }},"{{ $s.PathMethod }}")
+{{- end -}}
+{{- end}}
+    })
+}
+
+//struct function
+func init() {
+    reg.RegFn(func() {
+{{- range $f := .StructFunctions }}
+        {
+            p:=&{{ $.PackageName }}.{{ $f.StructName }}{}
+            h:=reg.ToBindF(p,p.{{ $f.Name }}, "{{ $f.Name }}")
+{{- range $s := $f.Paths}}
+            reg.DoRegisterGinRouter("{{ $f.GroupPath }}", h, "{{$s.PathMethod}}")
+{{- end}}
+        }
+{{- end}}
+    })
+}
