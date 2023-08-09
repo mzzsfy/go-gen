@@ -4,6 +4,7 @@
 package routers
 
 import (
+    "{{ .PackageBaseName }}/{{ .PackageName }}"
     "{{ .PackageBaseName }}/routers/reg"
 )
 
