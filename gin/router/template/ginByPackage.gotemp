@@ -10,25 +10,25 @@ import (
 //function
 func init() {
     reg.RegFn(func() {
-{{- range $f := .Functions }}
-{{- range $s := $f.Paths}}
+        {{- range $f := .Functions }}
+        {{- range $s := $f.Paths}}
         reg.DoRegisterGinRouter("{{ $f.GroupPath }}", {{ $.PackageName }}.{{ $f.Name }},"{{ $s.PathMethod }}")
-{{- end -}}
-{{- end}}
+        {{- end -}}
+        {{- end}}
     })
 }
 
 //struct function
 func init() {
     reg.RegFn(func() {
-{{- range $f := .StructFunctions }}
+        {{- range $f := .StructFunctions }}
         {
             p:=&{{ $.PackageName }}.{{ $f.StructName }}{}
             h:=reg.ToBindF(p,p.{{ $f.Name }}, "{{ $f.Name }}")
-{{- range $s := $f.Paths}}
+            {{- range $s := $f.Paths}}
             reg.DoRegisterGinRouter("{{ $f.GroupPath }}", h, "{{$s.PathMethod}}")
-{{- end}}
+            {{- end}}
         }
-{{- end}}
+        {{- end}}
     })
 }
