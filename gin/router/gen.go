@@ -3,7 +3,6 @@ package router
 import (
     "bytes"
     _ "embed"
-    "flag"
     "fmt"
     "github.com/mzzsfy/go-gen/register"
     "go/ast"
@@ -51,20 +50,15 @@ type Package struct {
     StructFunctions []StructFunction
 }
 
-var (
-    workDir    = flag.String("workDir", "./", "需要操作的目录")
-    moduleName = flag.String("moduleName", "", "手动指定主module名称,否则读取go.mod文件夹")
-)
-
 func gen() {
-    pkgs, err := ParseDir(token.NewFileSet(), *workDir, nil, parser.ParseComments)
-    fmt.Printf("开始生成路由,工作路径: %s, \n", *workDir)
+    pkgs, err := ParseDir(token.NewFileSet(), *register.WorkDir, nil, parser.ParseComments)
+    fmt.Printf("开始生成路由,工作路径: %s, \n", *register.WorkDir)
     if err != nil {
         panic(err)
     }
-    baseModuleName := *moduleName
+    baseModuleName := *register.ModuleName
     if baseModuleName == "" {
-        baseModuleName = findModuleName(*workDir)
+        baseModuleName = findModuleName(*register.WorkDir)
     }
     var contexts []*Package
     for pname, p := range pkgs {
@@ -167,16 +161,16 @@ func gen() {
     parse, _ := t.Parse(string(mainTemplate))
     b := &bytes.Buffer{}
     parse.Execute(b, contexts)
-    os.Mkdir(*workDir+"/routers", os.ModeDir)
-    os.Mkdir(*workDir+"/routers/reg", os.ModeDir)
-    name := path.Clean(*workDir + "/routers/reg/core.go")
+    os.Mkdir(*register.WorkDir+"/routers", os.ModeDir)
+    os.Mkdir(*register.WorkDir+"/routers/reg", os.ModeDir)
+    name := path.Clean(*register.WorkDir + "/routers/reg/core.go")
     err = os.WriteFile(name, b.Bytes(), os.ModePerm)
     if err != nil {
         panic(err)
     }
     fmt.Printf("已写入:%s\n", name)
     for _, context := range contexts {
-        wPath := path.Clean(*workDir + "/routers/" + context.PackageName + ".go")
+        wPath := path.Clean(*register.WorkDir + "/routers/" + context.PackageName + ".go")
         t := template.New(context.PackageName + ".go")
         _, err := t.Parse(string(ginByPackageTemplate))
         if err != nil {
