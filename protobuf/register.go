@@ -30,7 +30,7 @@ func genRegister() {
     if err != nil {
         panic(err)
     }
-    file, err := os.OpenFile("template/gen_register.go", os.O_CREATE|os.O_WRONLY, os.ModePerm)
+    file, err := os.OpenFile("./gen_register.go", os.O_CREATE|os.O_WRONLY, os.ModePerm)
     if err != nil {
         panic(err)
     }
