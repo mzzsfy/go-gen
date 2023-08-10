@@ -4,6 +4,7 @@ import (
     _ "embed"
     "flag"
     _ "github.com/mzzsfy/go-gen/gin"
+    _ "github.com/mzzsfy/go-gen/protobuf"
     "github.com/mzzsfy/go-gen/register"
 )
 
