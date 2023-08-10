@@ -33,7 +33,7 @@ func genRegister() {
     if err != nil {
         panic(err)
     }
-    file, err := os.OpenFile(workDir+"gen_register.go", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+    file, err := os.OpenFile(workDir+"/gen_register.go", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
     if err != nil {
         panic(err)
     }
