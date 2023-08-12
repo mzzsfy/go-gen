@@ -1,4 +1,4 @@
-package protobuf
+package enhance
 
 import (
     "github.com/mzzsfy/go-gen/register"
@@ -9,17 +9,11 @@ import (
     "path"
     "strings"
     "sync"
-    "text/template"
 )
 
 func init() {
-    register.Register("protobuf-register", genRegister)
+    register.Register("enhance-register", genRegister)
 }
-
-var (
-    genTemplate = template.Must(template.New("").Parse(`    RegisterProtobufGenRelation[{{.Type}}]("{{.Name}}")
-`))
-)
 
 func genRegister() {
     workDir := *register.WorkDir
@@ -28,7 +22,7 @@ func genRegister() {
     if err != nil {
         panic(err)
     }
-    file, err := os.OpenFile(workDir+"/gen_register.go", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+    file, err := os.OpenFile(workDir+"/"+*register.FileName, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
     if err != nil {
         panic(err)
     }
@@ -70,13 +64,10 @@ package ` + parseFile.Name.Name + "\n\nfunc init() {\n"))
                                 }
                                 for _, comment := range commentGroup.List {
                                     text := strings.TrimSpace(comment.Text[2:])
-                                    if strings.HasPrefix(text, "@relation") {
-                                        ss := strings.TrimSpace(text[10:])
+                                    if strings.HasPrefix(text, *register.Annotation) {
+                                        ss := strings.TrimSpace(text[len(*register.Annotation)+1:])
                                         for _, s := range strings.Split(ss, ",") {
-                                            genTemplate.Execute(file, map[string]string{
-                                                "Type": d2.Name.Name,
-                                                "Name": s,
-                                            })
+                                            file.Write([]byte("    " + *register.FunctionName + "[" + d2.Name.Name + "](\"" + s + "\")\n"))
                                         }
                                     }
                                 }

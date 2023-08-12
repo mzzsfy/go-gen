@@ -3,6 +3,9 @@ package register
 import "flag"
 
 var (
-    WorkDir    = flag.String("WorkDir", "./", "需要操作的目录")
-    ModuleName = flag.String("ModuleName", "", "手动指定主module名称,否则读取go.mod文件夹")
+    WorkDir      = flag.String("workDir", "./", "需要操作的目录")
+    ModuleName   = flag.String("moduleName", "", "手动指定主module名称,否则读取go.mod文件夹")
+    Annotation   = flag.String("annotation", "@relation", "需要识别的注释")
+    FunctionName = flag.String("functionName", "RegisterGenRelation", "方法名称")
+    FileName     = flag.String("fileName", "$register.gen.go", "生成文件名")
 )
