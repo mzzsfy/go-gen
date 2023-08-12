@@ -7,6 +7,7 @@ import (
     "go/token"
     "os"
     "path"
+    "regexp"
     "strings"
     "sync"
 )
@@ -15,6 +16,17 @@ func init() {
     register.Register("enhance-addFunction", addFunction)
 }
 func addFunction() {
+    reg, _ := regexp.Compile(".*")
+    {
+        expr := *register.FindFileRegex
+        if expr != "" {
+            var err error
+            reg, err = regexp.Compile(expr)
+            if err != nil {
+                panic(err)
+            }
+        }
+    }
     workDir := *register.WorkDir
     workDir = path.Clean(workDir)
     dir, err := os.ReadDir(workDir)
@@ -24,6 +36,8 @@ func addFunction() {
     file, err := os.OpenFile(workDir+"/"+*register.FileName, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
     if err != nil {
         panic(err)
+    } else {
+        println("生成文件: " + workDir + "/" + *register.FileName)
     }
     defer func() {
         file.Close()
@@ -31,7 +45,7 @@ func addFunction() {
     once := sync.Once{}
     fileSet := token.NewFileSet()
     for _, f := range dir {
-        if strings.HasSuffix(f.Name(), ".pb.go") {
+        if reg.MatchString(f.Name()) {
             parseFile, err := parser.ParseFile(fileSet, workDir+"/"+f.Name(), nil, parser.ParseComments)
             if err != nil {
                 println("跳过文件: " + f.Name() + ", 错误: " + err.Error())
