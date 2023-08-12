@@ -17,13 +17,10 @@ func init() {
 }
 
 var (
-    genTemplate = func() *template.Template {
-        return template.Must(template.New("").Parse(`    {
-        t := &{{.}}{}
-        RegisterProtobufGen(t)
-    }
+    genTemplate1 = template.Must(template.New("").Parse(`    GenRelation{{.Name2}} GenTypeRelation[{{.Type}}] = "{{.Name1}}"
 `))
-    }()
+    genTemplate2 = template.Must(template.New("").Parse(`    RegisterProtobufGenRelation(GenRelation{{.Name2}})
+`))
 )
 
 func genRegister() {
@@ -38,14 +35,14 @@ func genRegister() {
         panic(err)
     }
     defer func() {
-        file.Write([]byte("}\n"))
         file.Close()
     }()
     once := sync.Once{}
     fileSet := token.NewFileSet()
+    types := map[string][]string{}
     for _, f := range dir {
         if strings.HasSuffix(f.Name(), ".pb.go") {
-            parseFile, err := parser.ParseFile(fileSet, workDir+"/"+f.Name(), nil, 0)
+            parseFile, err := parser.ParseFile(fileSet, workDir+"/"+f.Name(), nil, parser.ParseComments)
             if err != nil {
                 println("跳过文件: " + f.Name() + ", 错误: " + err.Error())
                 continue
@@ -54,7 +51,7 @@ func genRegister() {
                 file.Write([]byte(`//This is an auto-generated file, please do not edit it manually
 //这是自动生成的文件,请不要手动编辑
 
-package ` + parseFile.Name.Name + "\n\nfunc init() {\n"))
+package ` + parseFile.Name.Name + "\n\ntype GenTypeRelation[T any] string\n\n"))
             })
             for _, dx := range parseFile.Decls {
                 switch d := dx.(type) {
@@ -64,7 +61,28 @@ package ` + parseFile.Name.Name + "\n\nfunc init() {\n"))
                         case *ast.TypeSpec:
                             switch d2.Type.(type) {
                             case *ast.StructType:
-                                genTemplate.Execute(file, d2.Name.Name)
+                                structName := d2.Name.Name
+                                if _, ok := types[structName]; !ok {
+                                    types[structName] = []string{}
+                                }
+                                if d2.Comment == nil && d.Doc == nil {
+                                    continue
+                                }
+                                var commentGroup *ast.CommentGroup
+                                if d2.Comment == nil {
+                                    commentGroup = d.Doc
+                                } else {
+                                    commentGroup = d2.Comment
+                                }
+                                for _, comment := range commentGroup.List {
+                                    text := strings.TrimSpace(comment.Text[2:])
+                                    if strings.HasPrefix(text, "@relation") {
+                                        ss := strings.TrimSpace(text[10:])
+                                        for _, s := range strings.Split(ss, ",") {
+                                            types[structName] = append(types[structName], s)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -72,4 +90,31 @@ package ` + parseFile.Name.Name + "\n\nfunc init() {\n"))
             }
         }
     }
+    file.Write([]byte(`
+const (
+`))
+    for k, s := range types {
+        for _, s2 := range s {
+            genTemplate1.Execute(file, map[string]string{
+                "Type":  k,
+                "Name1": s2,
+                "Name2": strings.ToUpper(s2[:1]) + s2[1:],
+            })
+        }
+    }
+    file.Write([]byte(`)
+
+func init() {
+`))
+    for k, s := range types {
+        for _, s2 := range s {
+            genTemplate2.Execute(file, map[string]string{
+                "Type":  k,
+                "Name1": s2,
+                "Name2": strings.ToUpper(s2[:1]) + s2[1:],
+            })
+        }
+    }
+    file.Write([]byte(`}
+`))
 }
