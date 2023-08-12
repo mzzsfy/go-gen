@@ -17,9 +17,7 @@ func init() {
 }
 
 var (
-    genTemplate1 = template.Must(template.New("").Parse(`    GenRelation{{.Name2}} GenTypeRelation[{{.Type}}] = "{{.Name1}}"
-`))
-    genTemplate2 = template.Must(template.New("").Parse(`    RegisterProtobufGenRelation(GenRelation{{.Name2}})
+    genTemplate = template.Must(template.New("").Parse(`    RegisterProtobufGenRelation[{{.Type}}]("{{.Name}}")
 `))
 )
 
@@ -35,11 +33,11 @@ func genRegister() {
         panic(err)
     }
     defer func() {
+        file.Write([]byte("}\n"))
         file.Close()
     }()
     once := sync.Once{}
     fileSet := token.NewFileSet()
-    types := map[string][]string{}
     for _, f := range dir {
         if strings.HasSuffix(f.Name(), ".pb.go") {
             parseFile, err := parser.ParseFile(fileSet, workDir+"/"+f.Name(), nil, parser.ParseComments)
@@ -51,7 +49,7 @@ func genRegister() {
                 file.Write([]byte(`//This is an auto-generated file, please do not edit it manually
 //这是自动生成的文件,请不要手动编辑
 
-package ` + parseFile.Name.Name + "\n\ntype GenTypeRelation[T any] string\n\n"))
+package ` + parseFile.Name.Name + "\n\nfunc init() {\n"))
             })
             for _, dx := range parseFile.Decls {
                 switch d := dx.(type) {
@@ -61,10 +59,6 @@ package ` + parseFile.Name.Name + "\n\ntype GenTypeRelation[T any] string\n\n"))
                         case *ast.TypeSpec:
                             switch d2.Type.(type) {
                             case *ast.StructType:
-                                structName := d2.Name.Name
-                                if _, ok := types[structName]; !ok {
-                                    types[structName] = []string{}
-                                }
                                 if d2.Comment == nil && d.Doc == nil {
                                     continue
                                 }
@@ -79,7 +73,10 @@ package ` + parseFile.Name.Name + "\n\ntype GenTypeRelation[T any] string\n\n"))
                                     if strings.HasPrefix(text, "@relation") {
                                         ss := strings.TrimSpace(text[10:])
                                         for _, s := range strings.Split(ss, ",") {
-                                            types[structName] = append(types[structName], s)
+                                            genTemplate.Execute(file, map[string]string{
+                                                "Type": d2.Name.Name,
+                                                "Name": s,
+                                            })
                                         }
                                     }
                                 }
@@ -90,31 +87,4 @@ package ` + parseFile.Name.Name + "\n\ntype GenTypeRelation[T any] string\n\n"))
             }
         }
     }
-    file.Write([]byte(`
-const (
-`))
-    for k, s := range types {
-        for _, s2 := range s {
-            genTemplate1.Execute(file, map[string]string{
-                "Type":  k,
-                "Name1": s2,
-                "Name2": strings.ToUpper(s2[:1]) + s2[1:],
-            })
-        }
-    }
-    file.Write([]byte(`)
-
-func init() {
-`))
-    for k, s := range types {
-        for _, s2 := range s {
-            genTemplate2.Execute(file, map[string]string{
-                "Type":  k,
-                "Name1": s2,
-                "Name2": strings.ToUpper(s2[:1]) + s2[1:],
-            })
-        }
-    }
-    file.Write([]byte(`}
-`))
 }
