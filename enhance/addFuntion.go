@@ -55,7 +55,7 @@ func addFunction() {
                 file.Write([]byte(`//This is an auto-generated file, please do not edit it manually
 //这是自动生成的文件,请不要手动编辑
 
-package ` + parseFile.Name.Name + "\n\n"))
+package ` + parseFile.Name.Name + "\n"))
             })
             for _, dx := range parseFile.Decls {
                 switch d := dx.(type) {
