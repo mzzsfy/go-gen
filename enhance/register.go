@@ -76,15 +76,17 @@ package ` + parseFile.Name.Name + "\n\nfunc init() {\n"))
                                 } else {
                                     commentGroup = d2.Comment
                                 }
+                                var values []string
                                 for _, comment := range commentGroup.List {
                                     text := strings.TrimSpace(comment.Text[2:])
                                     if strings.HasPrefix(text, *register.Annotation) {
                                         ss := strings.TrimSpace(text[len(*register.Annotation)+1:])
                                         for _, s := range strings.Split(ss, ",") {
-                                            file.Write([]byte("    " + *register.FunctionName + "[" + d2.Name.Name + "](\"" + s + "\")\n"))
+                                            values = append(values, `"`+s+`"`)
                                         }
                                     }
                                 }
+                                file.Write([]byte("    " + *register.FunctionName + "[" + d2.Name.Name + "]([]string{\"" + strings.Join(values, ",") + "\"})\n"))
                             }
                         }
                     }
