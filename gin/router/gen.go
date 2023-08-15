@@ -51,14 +51,16 @@ type Package struct {
 }
 
 func gen() {
-    pkgs, err := ParseDir(token.NewFileSet(), *register.WorkDir, nil, parser.ParseComments)
-    fmt.Printf("开始生成路由,工作路径: %s, \n", *register.WorkDir)
+    workDir := *register.WorkDir
+    workDir = path.Clean(workDir)
+    pkgs, err := ParseDir(token.NewFileSet(), workDir, nil, parser.ParseComments)
+    fmt.Printf("开始生成路由,工作路径: %s, \n", workDir)
     if err != nil {
         panic(err)
     }
     baseModuleName := *register.ModuleName
     if baseModuleName == "" {
-        baseModuleName = findModuleName(*register.WorkDir)
+        baseModuleName = findModuleName(workDir)
     }
     var contexts []*Package
     for pname, p := range pkgs {
@@ -161,16 +163,17 @@ func gen() {
     parse, _ := t.Parse(string(mainTemplate))
     b := &bytes.Buffer{}
     parse.Execute(b, contexts)
-    os.Mkdir(*register.WorkDir+"/routers", os.ModeDir)
-    os.Mkdir(*register.WorkDir+"/routers/reg", os.ModeDir)
-    name := path.Clean(*register.WorkDir + "/routers/reg/core.go")
+    outDir := path.Clean(*register.OutDir)
+    os.Mkdir(path.Clean(outDir+"/routers"), os.ModeDir)
+    os.Mkdir(path.Clean(outDir+"/routers/reg"), os.ModeDir)
+    name := path.Clean(outDir + "/routers/reg/core.go")
     err = os.WriteFile(name, b.Bytes(), os.ModePerm)
     if err != nil {
         panic(err)
     }
     fmt.Printf("已写入:%s\n", name)
     for _, context := range contexts {
-        wPath := path.Clean(*register.WorkDir + "/routers/" + context.PackageName + ".go")
+        wPath := path.Clean(outDir + "/routers/" + context.PackageName + ".go")
         t := template.New(context.PackageName + ".go")
         _, err := t.Parse(string(ginByPackageTemplate))
         if err != nil {
@@ -203,24 +206,23 @@ func findModuleName(dir string) string {
     return ""
 }
 
-func ParseDir(fset *token.FileSet, path string, filter func(fs.FileInfo) bool, mode parser.Mode) (pkgs map[string]*ast.Package, first error) {
-    list, err := os.ReadDir(path)
+func ParseDir(fset *token.FileSet, pathStr string, filter func(fs.FileInfo) bool, mode parser.Mode) (pkgs map[string]*ast.Package, first error) {
+    list, err := os.ReadDir(pathStr)
     if err != nil {
         return nil, err
     }
-    path = strings.TrimLeft(path, "./")
     pkgs = make(map[string]*ast.Package)
     for _, d := range list {
         if strings.HasPrefix(d.Name(), ".") {
             continue
         }
         if d.IsDir() {
-            p, f := ParseDir(fset, filepath.Join(path, d.Name()), filter, parser.ParseComments)
+            p, f := ParseDir(fset, filepath.Join(pathStr, d.Name()), filter, parser.ParseComments)
             if f != nil {
                 first = f
             }
             for s, a := range p {
-                pkgs[strings.TrimLeft(strings.ReplaceAll(filepath.Join(path, s), "\\", "/"), "/")] = a
+                pkgs[strings.TrimLeft(strings.ReplaceAll(filepath.Join(pathStr, s), "\\", "/"), "/")] = a
             }
             continue
         }
@@ -236,11 +238,11 @@ func ParseDir(fset *token.FileSet, path string, filter func(fs.FileInfo) bool, m
                 continue
             }
         }
-        filename := filepath.Join(path, d.Name())
+        filename := filepath.Join(pathStr, d.Name())
         if src, err := parser.ParseFile(fset, filename, nil, mode); err == nil {
             name := src.Name.Name
             pName := name
-            if pName == "main" && path == "" {
+            if pName == "main" && pathStr == "" {
                 name = ""
             }
             pkg, found := pkgs[name]

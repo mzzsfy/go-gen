@@ -150,7 +150,7 @@ func AddGroupHandlers(group string, handlers ...gin.HandlerFunc) {
         g.Handlers = append(g.Handlers, handlers...)
     }
 }
-func ToBindF(structPointer any, fn func(*gin.Context), funcName string) gin.HandlerFunc {
+func ToBindF(structPointer any, _ func(*gin.Context), funcName string) gin.HandlerFunc {
     return toBind(structPointer, funcName)
 }
 func toBind(structPointer any, funcName string) gin.HandlerFunc {
