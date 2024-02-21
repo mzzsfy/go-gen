@@ -46,6 +46,10 @@ func genRegister() {
     }()
     once := sync.Once{}
     fileSet := token.NewFileSet()
+    leftString := "["
+    if *register.UsingPointers {
+        leftString += "*"
+    }
     for _, f := range dir {
         if reg.MatchString(f.Name()) {
             parseFile, err := parser.ParseFile(fileSet, workDir+"/"+f.Name(), nil, parser.ParseComments)
@@ -86,7 +90,7 @@ package ` + parseFile.Name.Name + "\n\nfunc init() {\n"))
                                         }
                                     }
                                 }
-                                file.Write([]byte("    " + *register.FunctionName + "[" + d2.Name.Name + "]([]string{" + strings.Join(values, ",") + "})\n"))
+                                file.Write([]byte("    " + *register.FunctionName + leftString + d2.Name.Name + "]([]string{" + strings.Join(values, ",") + "})\n"))
                             }
                         }
                     }
