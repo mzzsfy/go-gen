@@ -289,6 +289,10 @@ var (
         err error
         f   func(error *gin.Error, context *gin.Context) bool
     }
+    errorHandlesT []struct {
+        err func() error
+        f   func(error *gin.Error, context *gin.Context) bool
+    }
 )
 
 // AddErrorHandle 为某些错误添加自定义处理逻辑,返回值为是否处理完成
@@ -304,6 +308,22 @@ func AddErrorHandle(err error, handle func(error *gin.Error, context *gin.Contex
     })
 }
 
+// AddErrorHandleByType 为某些自定错误类型添加自定义处理逻辑,返回值为是否处理完成
+func AddErrorHandleByType[TP interface {
+    *T
+    Error() string
+}, T any](handle func(error *gin.Error, context *gin.Context) bool) {
+    lock.Lock()
+    defer lock.Unlock()
+    errorHandlesT = append(errorHandlesT, struct {
+        err func() error
+        f   func(error *gin.Error, context *gin.Context) bool
+    }{
+        err: func() error { return TP(nil) },
+        f:   handle,
+    })
+}
+
 // RegisterErrorHandle 简单的统一异常拦截,可自定义
 func RegisterErrorHandle(ginEngine *gin.Engine) {
     ginEngine.Handlers = append([]gin.HandlerFunc{func(context *gin.Context) {
@@ -315,6 +335,14 @@ func RegisterErrorHandle(ginEngine *gin.Engine) {
         e := es.Last()
         for i := 0; i < len(errorHandles); i++ {
             if errors.Is(errorHandles[i].err, e.Err) {
+                if errorHandles[i].f(e, context) {
+                    return
+                }
+            }
+        }
+        for i := 0; i < len(errorHandlesT); i++ {
+            err := errorHandlesT[i].err()
+            if errors.As(e.Err, &err) {
                 if errorHandles[i].f(e, context) {
                     return
                 }

@@ -42,7 +42,7 @@ go-gen -genType=enhance-register -usingPointers=false -annotation=call -function
 ```go
 //register.gen.go
 func init() {
-    CALLFN([]string{"a","b","c","1234"})
+    CALLFN[test]([]string{"a","b","c","1234"})
 }
 ```
 
