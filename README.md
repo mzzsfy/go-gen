@@ -1,4 +1,50 @@
-# go-genGin
+# go-gen
+
+## addFunction
+
+添加特定注释的所有struct添加方法
+
+```go
+//@addFn a,b,c,123
+type test struct {
+}
+```
+
+```shell
+go-gen -genType=enhance-addFunction -usingPointers=true -annotation=addFn -functionName=ADDFN -findFileRegex=.*\.pb\.go -fileName=addFunction.gen.go
+```
+
+```go
+//addFunction.gen.go
+func (t *test) ADDFN() []string {
+    return []string{"a","b","c","123"}
+}
+```
+
+## register
+
+让添加特定注释的struct在init函数中调用方法
+
+```go
+//@addFn a,b,c,1234
+type test struct {
+}
+
+func CALLFN[T any](ss []string) {
+    println(ss)
+}
+```
+
+```shell
+go-gen -genType=enhance-register -usingPointers=false -annotation=call -functionName=CALLFN -findFileRegex=.*\.pb\.go -fileName=register.gen.go
+```
+
+```go
+//register.gen.go
+func init() {
+    CALLFN([]string{"a","b","c","1234"})
+}
+```
 
 ## gin-router
 
@@ -67,7 +113,7 @@ func main() {
     // 简单的统一异常处理,可不注册自己编写
     reg.RegisterErrorHandle(g)
     // 在这里添加组中间件
-    reg.AddGroupHandlers("<<组>>", func(context *gin.Context) {
+    reg.AddGroupHandlers("<组>", func(context *gin.Context) {
     })
     // 注册生成的路由
     reg.RegisterRouter(g)

@@ -4,6 +4,7 @@
 package reg
 
 import (
+    "errors"
     "github.com/gin-gonic/gin"
     "github.com/gin-gonic/gin/binding"
     "github.com/go-playground/validator/v10"
@@ -60,7 +61,7 @@ var (
         },
     }
 
-    g              *gin.Engine
+    g              *gin.RouterGroup
     groups         = make(map[string]*gin.RouterGroup)
     groupsHandlers = make(map[string][]gin.HandlerFunc)
     regFns         []func()
@@ -72,32 +73,12 @@ var (
     }
 )
 
-func RegFn(f func()) {
+func RegisterFn(f func()) {
     regFns = append(regFns, f)
 }
 
-// RegisterErrorHandle 简单的统一异常拦截,可自定义
-func RegisterErrorHandle(ginEngine *gin.Engine) {
-    ginEngine.Handlers = append([]gin.HandlerFunc{func(context *gin.Context) {
-        context.Next()
-        es := context.Errors
-        if len(es) == 0 {
-            return
-        }
-        e := es.Last()
-        status := context.Writer.Status()
-        if status == 200 {
-            status = 500
-        }
-        context.JSON(status, gin.H{
-            "msg":  e.Error(),
-            "data": e,
-        })
-    }}, ginEngine.Handlers...)
-}
-
 // RegisterRouter 注册路由,当gin不是同一个实例时,Group中信息也会被更新
-func RegisterRouter(Gin *gin.Engine) {
+func RegisterRouter(Gin *gin.RouterGroup) {
     lock.Lock()
     defer lock.Unlock()
     if g != Gin {
@@ -111,17 +92,19 @@ func RegisterRouter(Gin *gin.Engine) {
 }
 
 func DoRegisterGinRouter(group string, handler gin.HandlerFunc, relativePath string, methods ...string) {
-    g := GetGroup(group)
+    g1 := GetGroup(group)
     if len(methods) <= 0 {
         methods = allMethods
     }
     for _, m := range methods {
-        g.Handle(m, relativePath, handler)
+        g1.Handle(m, relativePath, handler)
     }
 }
 
 // BindGin 绑定gin,当gin不是同一个实例时,Group中信息也会被更新
-func BindGin(Gin *gin.Engine) {
+func BindGin(Gin *gin.RouterGroup) {
+    lock.Lock()
+    defer lock.Unlock()
     if g != Gin {
         g = Gin
         // 生成新的groups,允许重复绑定到多个gin实例
@@ -131,6 +114,8 @@ func BindGin(Gin *gin.Engine) {
 
 // GetGroup 获取一个组,用于注册中间件
 func GetGroup(group string) *gin.RouterGroup {
+    lock.Lock()
+    defer lock.Unlock()
     routerGroup := groups[group]
     if routerGroup == nil {
         if g == nil {
@@ -145,6 +130,8 @@ func GetGroup(group string) *gin.RouterGroup {
 
 // AddGroupHandlers 统一维护中间件,防止加载顺序不一致导致的未注册成功
 func AddGroupHandlers(group string, handlers ...gin.HandlerFunc) {
+    lock.Lock()
+    defer lock.Unlock()
     groupsHandlers[group] = append(groupsHandlers[group], handlers...)
     if g, ok := groups[group]; ok {
         g.Handlers = append(g.Handlers, handlers...)
@@ -234,14 +221,14 @@ func appendTagByType(t reflect.Type, waitBindTag []string) []string {
     return waitBindTag
 }
 
-func ChangeValidateTag(name string) binding.StructValidator {
+// ChangeValidateTag 修改Validator的使用的Tag名称
+func ChangeValidateTag(name string) {
     if d, ok := Validator.(*defaultValidator); ok {
         d.ValidateStruct(struct{}{})
         d.validate.SetTagName(name)
     } else {
         panic("自定义Validator不支持修改TagName")
     }
-    return Validator
 }
 
 func validate(obj any) error {
@@ -295,4 +282,74 @@ func (v *defaultValidator) lazyinit() {
     v.once.Do(func() {
         v.validate = validator.New()
     })
+}
+
+var (
+    errorHandles []struct {
+        err error
+        f   func(error *gin.Error, context *gin.Context) bool
+    }
+)
+
+// AddErrorHandle 为某些错误添加自定义处理逻辑,返回值为是否处理完成
+func AddErrorHandle(err error, handle func(error *gin.Error, context *gin.Context) bool) {
+    lock.Lock()
+    defer lock.Unlock()
+    errorHandles = append(errorHandles, struct {
+        err error
+        f   func(error *gin.Error, context *gin.Context) bool
+    }{
+        err: err,
+        f:   handle,
+    })
+}
+
+// RegisterErrorHandle 简单的统一异常拦截,可自定义
+func RegisterErrorHandle(ginEngine *gin.Engine) {
+    ginEngine.Handlers = append([]gin.HandlerFunc{func(context *gin.Context) {
+        context.Next()
+        es := context.Errors
+        if len(es) == 0 {
+            return
+        }
+        e := es.Last()
+        for i := 0; i < len(errorHandles); i++ {
+            if errors.Is(errorHandles[i].err, e.Err) {
+                if errorHandles[i].f(e, context) {
+                    return
+                }
+            }
+        }
+        status := context.Writer.Status()
+        if status == 200 {
+            status = 500
+        }
+        context.JSON(status, Error(e.Err))
+    }}, ginEngine.Handlers...)
+}
+
+var R r
+
+type r struct{}
+
+type Res struct {
+    Code    int    `json:"code"`
+    Data    any    `json:"data"`
+    Message string `json:"message,omitempty"`
+}
+
+func New(code int, message string) Res {
+    return Res{Code: code, Message: message}
+}
+
+func OK(data any) Res {
+    return Res{Code: 0, Data: data}
+}
+
+func Err(str string) Res {
+    return Res{Code: 1, Message: str}
+}
+
+func Error(err error) Res {
+    return Res{Code: 1, Message: err.Error()}
 }

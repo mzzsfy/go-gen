@@ -124,6 +124,9 @@ func gen() {
                         groupPath = ""
                     }
                     for i, p := range httpPath {
+                        // 如果用户填写了全路径,去掉groupPath
+                        // @RouterGroup /api/user
+                        // /api/user/info => /info
                         httpPath[i].Path = strings.TrimPrefix(p.Path, groupPath)
                         httpPath[i].PathMethod = strings.TrimPrefix(p.PathMethod, groupPath)
                     }
