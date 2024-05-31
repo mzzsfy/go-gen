@@ -24,8 +24,8 @@ func init() {
     reg.RegFn(func() {
         {{- range $f := .StructFunctions }}
         {
-            p:=&{{ $.PackageName }}.{{ $f.StructName }}{}
-            h:=reg.ToBindF(p,p.{{ $f.Name }}, "{{ $f.Name }}")
+            p := &{{ $.PackageName }}.{{ $f.StructName }}{}
+            h := reg.ToBindF(p,p.{{ $f.Name }}, "{{ $f.Name }}")
             {{- range $s := $f.Paths}}
             reg.DoRegisterGinRouter("{{ $f.GroupPath }}", h, "{{$s.PathMethod}}")
             {{- end}}
