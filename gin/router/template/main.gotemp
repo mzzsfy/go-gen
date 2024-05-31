@@ -79,8 +79,6 @@ func RegisterFn(f func()) {
 
 // RegisterRouter 注册路由,当gin不是同一个实例时,Group中信息也会被更新
 func RegisterRouter(Gin *gin.RouterGroup) {
-    lock.Lock()
-    defer lock.Unlock()
     if g != Gin {
         g = Gin
         // 生成新的groups,允许重复绑定到多个gin实例
@@ -137,10 +135,16 @@ func AddGroupHandlers(group string, handlers ...gin.HandlerFunc) {
         g.Handlers = append(g.Handlers, handlers...)
     }
 }
-func ToBindF(structPointer any, _ func(*gin.Context), funcName string) gin.HandlerFunc {
-    return toBind(structPointer, funcName)
+func ToBindF[T any](structPointer *T, _ func(*gin.Context), funcName string) gin.HandlerFunc {
+    return toBind[T](structPointer, funcName)
 }
-func toBind(structPointer any, funcName string) gin.HandlerFunc {
+
+type LifeCycleManager[T any] interface {
+    GetNewSelf() *T
+    ReclaimSelf(*T)
+}
+
+func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
     t := reflect.TypeOf(structPointer)
     m, ok := t.MethodByName(funcName)
     if t.Kind() == reflect.Pointer {
@@ -149,11 +153,24 @@ func toBind(structPointer any, funcName string) gin.HandlerFunc {
             m, _ = t.MethodByName(funcName)
         }
     }
-    index := m.Index
     waitBindTag := findTags(nil, t)
+    var lifeCycleCaller, _ = any(structPointer).(LifeCycleManager[T])
+    if lifeCycleCaller != nil {
+        t1 := lifeCycleCaller.GetNewSelf()
+        if t1 == nil {
+            panic("自定义生命周期管理器返回为nil")
+        }
+    }
+    f := (m.Func.Interface()).(func(*T, *gin.Context))
     return func(context *gin.Context) {
-        reflectObj := reflect.New(t)
-        obj := reflectObj.Interface()
+        var obj *T
+        if lifeCycleCaller != nil {
+            obj = lifeCycleCaller.GetNewSelf()
+            defer lifeCycleCaller.ReclaimSelf(obj)
+        } else {
+            newObj := *structPointer
+            obj = &newObj
+        }
         bind := false
         for _, s := range waitBindTag {
             f := BindByTag[s]
@@ -176,7 +193,7 @@ func toBind(structPointer any, funcName string) gin.HandlerFunc {
                 return
             }
         }
-        reflectObj.Method(index).Call([]reflect.Value{reflect.ValueOf(context)})
+        f(obj, context)
     }
 }
 
@@ -326,7 +343,12 @@ func AddErrorHandleByType[TP interface {
 
 // RegisterErrorHandle 简单的统一异常拦截,可自定义
 func RegisterErrorHandle(ginEngine *gin.Engine) {
-    ginEngine.Handlers = append([]gin.HandlerFunc{func(context *gin.Context) {
+    ginEngine.Handlers = append([]gin.HandlerFunc{ErrorHandle()}, ginEngine.Handlers...)
+}
+
+// ErrorHandle 简单的统一异常拦截,可自定义
+func ErrorHandle() gin.HandlerFunc {
+    return func(context *gin.Context) {
         context.Next()
         es := context.Errors
         if len(es) == 0 {
@@ -353,7 +375,7 @@ func RegisterErrorHandle(ginEngine *gin.Engine) {
             status = 500
         }
         context.JSON(status, Error(e.Err))
-    }}, ginEngine.Handlers...)
+    }
 }
 
 var R r
