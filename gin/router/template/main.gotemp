@@ -147,19 +147,17 @@ type LifeCycleManager[T any] interface {
 func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
     t := reflect.TypeOf(structPointer)
     m, ok := t.MethodByName(funcName)
-    if t.Kind() == reflect.Pointer {
-        t = t.Elem()
-        if !ok {
-            m, _ = t.MethodByName(funcName)
-        }
+    if !ok {
+        panic("未找到方法" + funcName + ",请确定方法参数为指针")
     }
-    waitBindTag := findTags(nil, t)
+    waitBindTag := findTags(nil, t.Elem())
     var lifeCycleCaller, _ = any(structPointer).(LifeCycleManager[T])
     if lifeCycleCaller != nil {
         t1 := lifeCycleCaller.GetNewSelf()
         if t1 == nil {
             panic("自定义生命周期管理器返回为nil")
         }
+        lifeCycleCaller.ReclaimSelf(t1)
     }
     f := (m.Func.Interface()).(func(*T, *gin.Context))
     return func(context *gin.Context) {
