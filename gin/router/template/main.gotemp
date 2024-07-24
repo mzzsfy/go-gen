@@ -376,8 +376,6 @@ func ErrorHandle() gin.HandlerFunc {
     }
 }
 
-type r struct{}
-
 type Res struct {
     Code    int    `json:"code"`
     Data    any    `json:"data"`
