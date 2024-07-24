@@ -12,6 +12,7 @@ import (
     "os"
     "path"
     "path/filepath"
+    "slices"
     "strings"
     "text/template"
 )
@@ -40,7 +41,7 @@ type Function struct {
     Paths     []HttpPath
 }
 type StructFunction struct {
-    Function
+    Functions  []Function
     StructName string
 }
 type Package struct {
@@ -53,6 +54,9 @@ type Package struct {
 func gen() {
     workDir := *register.WorkDir
     workDir = path.Clean(workDir)
+    if len(workDir) > 2 && len(*register.OutDir) <= 2 {
+        *register.OutDir = strings.ReplaceAll(workDir, "\\", "/")
+    }
     pkgs, err := ParseDir(token.NewFileSet(), workDir, nil, parser.ParseComments)
     fmt.Printf("开始生成路由,工作路径: %s, \n", workDir)
     if err != nil {
@@ -61,6 +65,15 @@ func gen() {
     baseModuleName := *register.ModuleName
     if baseModuleName == "" {
         baseModuleName = findModuleName(workDir)
+    }
+    if len(workDir) > 2 {
+        basePkgPath := strings.ReplaceAll(workDir, "\\", "/")
+        for key, v := range pkgs {
+            if strings.HasPrefix(key, basePkgPath) {
+                pkgs[strings.ReplaceAll(key, basePkgPath+"/", "")] = v
+                delete(pkgs, key)
+            }
+        }
     }
     var contexts []*Package
     for pname, p := range pkgs {
@@ -136,16 +149,31 @@ func gen() {
                             structType = expr.X
                         }
                         ident := structType.(*ast.Ident)
-
-                        pc.StructFunctions = append(pc.StructFunctions, StructFunction{
-                            Function: Function{
-                                FileInfo:  FileInfo{Path: fname},
-                                GroupPath: groupPath,
-                                Paths:     httpPath,
-                                Name:      d.Name.Name,
-                            },
-                            StructName: ident.Name,
+                        //找到结构体
+                        var structFunction *StructFunction
+                        for i, sf := range pc.StructFunctions {
+                            if sf.StructName == ident.Name {
+                                structFunction = &pc.StructFunctions[i]
+                                break
+                            }
+                        }
+                        //没有找到,创建
+                        b := structFunction == nil
+                        if b {
+                            structFunction = &StructFunction{
+                                StructName: ident.Name,
+                            }
+                        }
+                        //添加方法
+                        structFunction.Functions = append(structFunction.Functions, Function{
+                            FileInfo:  FileInfo{Path: fname},
+                            GroupPath: groupPath,
+                            Paths:     httpPath,
+                            Name:      d.Name.Name,
                         })
+                        if b {
+                            pc.StructFunctions = append(pc.StructFunctions, *structFunction)
+                        }
                     } else {
                         pc.Functions = append(pc.Functions, Function{
                             FileInfo:  FileInfo{Path: fname},
@@ -157,6 +185,11 @@ func gen() {
                 default:
                 }
             }
+            slices.SortFunc(pc.StructFunctions, func(i, j StructFunction) int { return strings.Compare(i.StructName, j.StructName) })
+            for _, function := range pc.StructFunctions {
+                slices.SortFunc(function.Functions, func(i, j Function) int { return strings.Compare(i.Name, j.Name) })
+            }
+            slices.SortFunc(pc.Functions, func(i, j Function) int { return strings.Compare(i.Name, j.Name) })
         }
         if len(pc.Functions) > 0 || len(pc.StructFunctions) > 0 {
             contexts = append(contexts, pc)
@@ -165,6 +198,7 @@ func gen() {
     t := template.New("main.go")
     parse, _ := t.Parse(string(mainTemplate))
     b := &bytes.Buffer{}
+    slices.SortFunc(contexts, func(i, j *Package) int { return strings.Compare(i.PackageName, j.PackageName) })
     parse.Execute(b, contexts)
     outDir := path.Clean(*register.OutDir)
     os.Mkdir(path.Clean(outDir+"/routers"), os.ModeDir)
@@ -188,6 +222,7 @@ func gen() {
             panic(err)
         }
         i := b.Bytes()
+        os.Mkdir(path.Dir(wPath), os.ModeDir)
         err = os.WriteFile(wPath, i, os.ModePerm)
         if err != nil {
             panic(err)

@@ -376,8 +376,6 @@ func ErrorHandle() gin.HandlerFunc {
     }
 }
 
-var R r
-
 type r struct{}
 
 type Res struct {
