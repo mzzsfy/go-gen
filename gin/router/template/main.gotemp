@@ -19,6 +19,18 @@ var (
     Validator binding.StructValidator = &defaultValidator{}
     // BeforeValidator 返回false跳过验证
     BeforeValidator = func(*gin.Context, any) bool { return true }
+    // ResultHandler 自定义写入返回结果
+    ResultHandler = func(ctx *gin.Context, res any) {
+        if res == nil {
+            ctx.JSON(200, Ok(res))
+        } else if r, ok := res.(Res); ok {
+            ctx.JSON(200, r)
+        } else if err, ok := res.(error); ok {
+            ctx.JSON(500, Error(err))
+        } else {
+            ctx.JSON(200, Ok(res))
+        }
+    }
     // BindByTag 自定义Tag与数据绑定的关系
     BindByTag = map[string]func(any, *gin.Context) error{
         "query": func(obj any, context *gin.Context) error {
@@ -135,13 +147,14 @@ func AddGroupHandlers(group string, handlers ...gin.HandlerFunc) {
         g.Handlers = append(g.Handlers, handlers...)
     }
 }
-func ToBindF[T any](structPointer *T, _ func(*gin.Context), funcName string) gin.HandlerFunc {
-    return toBind[T](structPointer, funcName)
-}
 
 type LifeCycleManager[T any] interface {
     GetNewSelf() *T
     ReclaimSelf(*T)
+}
+
+func ToBindF[T any](structPointer *T, _ func(*gin.Context) any, funcName string) gin.HandlerFunc {
+    return toBind[T](structPointer, funcName)
 }
 
 func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
@@ -159,7 +172,7 @@ func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
         }
         lifeCycleCaller.ReclaimSelf(t1)
     }
-    f := (m.Func.Interface()).(func(*T, *gin.Context))
+    f := (m.Func.Interface()).(func(*T, *gin.Context) any)
     return func(context *gin.Context) {
         var obj *T
         if lifeCycleCaller != nil {
@@ -191,7 +204,7 @@ func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
                 return
             }
         }
-        f(obj, context)
+        ResultHandler(context, f(obj, context))
     }
 }
 
@@ -386,7 +399,7 @@ func New(code int, message string) Res {
     return Res{Code: code, Message: message}
 }
 
-func OK(data any) Res {
+func Ok(data any) Res {
     return Res{Code: 0, Data: data}
 }
 
