@@ -20,7 +20,7 @@ var (
     // BeforeValidator 返回false跳过验证
     BeforeValidator = func(*gin.Context, any) bool { return true }
     // ResultHandler 自定义写入返回结果
-    ResultHandler = func(ctx *gin.Context, res any) {
+    ResultHandler = func(ctx *gin.Context, entity, res any) {
         if res == nil {
             ctx.JSON(200, Ok(res))
         } else if r, ok := res.(Res); ok {
@@ -204,7 +204,7 @@ func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
                 return
             }
         }
-        ResultHandler(context, f(obj, context))
+        ResultHandler(context, obj, f(obj, context))
     }
 }
 
