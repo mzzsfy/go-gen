@@ -31,6 +31,7 @@ var (
             ctx.JSON(200, Ok(res))
         }
     }
+    BindingErrorHandler = func(ctx *gin.Context, entity any, res error) { ResultHandler(ctx, entity, res) }
     // BindByTag 自定义Tag与数据绑定的关系
     BindByTag = map[string]func(any, *gin.Context) error{
         "query": func(obj any, context *gin.Context) error {
@@ -191,6 +192,8 @@ func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
                 if err != nil {
                     context.Status(400)
                     _ = context.Error(err)
+                    context.Abort()
+                    BindingErrorHandler(context, obj, err)
                     return
                 }
             }
@@ -201,6 +204,7 @@ func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
                 context.Status(400)
                 _ = context.Error(err)
                 context.Abort()
+                BindingErrorHandler(context, obj, err)
                 return
             }
         }
