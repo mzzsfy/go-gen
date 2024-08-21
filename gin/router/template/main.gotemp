@@ -21,6 +21,9 @@ var (
     BeforeValidator = func(*gin.Context, any) bool { return true }
     // ResultHandler 自定义写入返回结果
     ResultHandler = func(ctx *gin.Context, entity, res any) {
+        if ctx.Writer.Written() {
+            return
+        }
         if res == nil {
             ctx.JSON(200, Ok(res))
         } else if r, ok := res.(Res); ok {
