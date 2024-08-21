@@ -185,15 +185,17 @@ func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
         }
         bind := false
         for _, s := range waitBindTag {
-            f := BindByTag[s]
-            if f != nil {
+            bindFn := BindByTag[s]
+            if bindFn != nil {
                 bind = true
-                err := f(obj, context)
+                err := bindFn(obj, context)
                 if err != nil {
-                    context.Status(400)
-                    _ = context.Error(err)
-                    context.Abort()
                     BindingErrorHandler(context, obj, err)
+                    if !context.Writer.Written() {
+                        context.Status(400)
+                        _ = context.Error(err)
+                        context.Abort()
+                    }
                     return
                 }
             }
@@ -201,10 +203,12 @@ func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
         if bind && BeforeValidator(context, obj) {
             err := validate(obj)
             if err != nil {
-                context.Status(400)
-                _ = context.Error(err)
-                context.Abort()
                 BindingErrorHandler(context, obj, err)
+                if !context.Writer.Written() {
+                    context.Status(400)
+                    _ = context.Error(err)
+                    context.Abort()
+                }
                 return
             }
         }
@@ -217,13 +221,13 @@ func findTags(waitBindTag []string, t reflect.Type) []string {
     numField := t.NumField()
     for i := 0; i < numField; i++ {
         field := t.Field(i)
-        t := field.Type
-        if t.Kind() == reflect.Pointer {
-            t = t.Elem()
+        Type := field.Type
+        if Type.Kind() == reflect.Pointer {
+            Type = Type.Elem()
         }
-        name := t.Name()
+        name := Type.Name()
         if field.Name == name {
-            waitBindTag = findTags(waitBindTag, t)
+            waitBindTag = findTags(waitBindTag, Type)
         }
     }
     return waitBindTag
