@@ -21,9 +21,6 @@ var (
     BeforeValidator = func(*gin.Context, any) bool { return true }
     // ResultHandler 自定义写入返回结果
     ResultHandler = func(ctx *gin.Context, entity, res any) {
-        if ctx.Writer.Written() {
-            return
-        }
         if res == nil {
             ctx.JSON(200, Ok(res))
         } else if r, ok := res.(Res); ok {
@@ -157,6 +154,10 @@ type LifeCycleManager[T any] interface {
     ReclaimSelf(*T)
 }
 
+func ToBindM(f func(*gin.Context) any) gin.HandlerFunc {
+    return func(context *gin.Context) { ResultHandler(context, nil, f(context)) }
+}
+
 func ToBindF[T any](structPointer *T, _ func(*gin.Context) any, funcName string) gin.HandlerFunc {
     return toBind[T](structPointer, funcName)
 }
@@ -188,17 +189,15 @@ func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
         }
         bind := false
         for _, s := range waitBindTag {
-            bindFn := BindByTag[s]
-            if bindFn != nil {
+            f := BindByTag[s]
+            if f != nil {
                 bind = true
-                err := bindFn(obj, context)
+                err := f(obj, context)
                 if err != nil {
+                    context.Status(400)
+                    _ = context.Error(err)
+                    context.Abort()
                     BindingErrorHandler(context, obj, err)
-                    if !context.Writer.Written() {
-                        context.Status(400)
-                        _ = context.Error(err)
-                        context.Abort()
-                    }
                     return
                 }
             }
@@ -206,12 +205,10 @@ func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
         if bind && BeforeValidator(context, obj) {
             err := validate(obj)
             if err != nil {
+                context.Status(400)
+                _ = context.Error(err)
+                context.Abort()
                 BindingErrorHandler(context, obj, err)
-                if !context.Writer.Written() {
-                    context.Status(400)
-                    _ = context.Error(err)
-                    context.Abort()
-                }
                 return
             }
         }
@@ -224,13 +221,13 @@ func findTags(waitBindTag []string, t reflect.Type) []string {
     numField := t.NumField()
     for i := 0; i < numField; i++ {
         field := t.Field(i)
-        Type := field.Type
-        if Type.Kind() == reflect.Pointer {
-            Type = Type.Elem()
+        t := field.Type
+        if t.Kind() == reflect.Pointer {
+            t = t.Elem()
         }
-        name := Type.Name()
+        name := t.Name()
         if field.Name == name {
-            waitBindTag = findTags(waitBindTag, Type)
+            waitBindTag = findTags(waitBindTag, t)
         }
     }
     return waitBindTag
