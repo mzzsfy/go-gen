@@ -21,6 +21,9 @@ var (
     BeforeValidator = func(*gin.Context, any) bool { return true }
     // ResultHandler 自定义写入返回结果
     ResultHandler = func(ctx *gin.Context, entity, res any) {
+        if res == ResultDoNothing {
+            return
+        }
         if res == nil {
             ctx.JSON(200, Ok(res))
         } else if r, ok := res.(Res); ok {
@@ -396,6 +399,12 @@ func ErrorHandle() gin.HandlerFunc {
         context.JSON(status, Error(e.Err))
     }
 }
+
+type flag uint8
+
+const (
+    ResultDoNothing flag = iota + 1
+)
 
 type Res struct {
     Code    int    `json:"code"`
