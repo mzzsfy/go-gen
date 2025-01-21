@@ -4,426 +4,426 @@
 package reg
 
 import (
-    "errors"
-    "github.com/gin-gonic/gin"
-    "github.com/gin-gonic/gin/binding"
-    "github.com/go-playground/validator/v10"
-    "net/http"
-    "reflect"
-    "strings"
-    "sync"
+	"errors"
+	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
+	"net/http"
+	"reflect"
+	"strings"
+	"sync"
 )
 
 var (
-    // Validator 绑定的参数检验工具
-    Validator binding.StructValidator = &defaultValidator{}
-    // BeforeValidator 返回false跳过验证
-    BeforeValidator = func(*gin.Context, any) bool { return true }
-    // ResultHandler 自定义写入返回结果
-    ResultHandler = func(ctx *gin.Context, entity, res any) {
-        if res == ResultDoNothing {
-            return
-        }
-        if res == nil {
-            ctx.JSON(200, Ok(res))
-        } else if r, ok := res.(Res); ok {
-            ctx.JSON(200, r)
-        } else if err, ok := res.(error); ok {
-            ctx.JSON(500, Error(err))
-        } else {
-            ctx.JSON(200, Ok(res))
-        }
-    }
-    BindingErrorHandler = func(ctx *gin.Context, entity any, res error) { ResultHandler(ctx, entity, res) }
-    // BindByTag 自定义Tag与数据绑定的关系
-    BindByTag = map[string]func(any, *gin.Context) error{
-        "query": func(obj any, context *gin.Context) error {
-            values := context.Request.URL.Query()
-            if err := binding.MapFormWithTag(obj, values, "query"); err != nil {
-                return err
-            }
-            return nil
-        },
-        "form": func(obj any, context *gin.Context) error {
-            req := context.Request
-            if req.Method == "POST" || req.Method == "PUT" {
-                if context.ContentType() == binding.MIMEMultipartPOSTForm {
-                    return binding.FormMultipart.Bind(req, obj)
-                } else {
-                    return binding.Form.Bind(req, obj)
-                }
-            }
-            return nil
-        },
-        "json": func(obj any, context *gin.Context) error {
-            if context.Request.Method == "POST" || context.Request.Method == "PUT" {
-                return context.BindJSON(obj)
-            }
-            return nil
-        },
-        "header": func(obj any, context *gin.Context) error {
-            return context.BindHeader(obj)
-        },
-        "path": func(obj any, context *gin.Context) error {
-            params := context.Params
-            values := make(map[string][]string, len(params))
-            for _, param := range params {
-                values[param.Key] = []string{param.Value}
-            }
-            if err := binding.MapFormWithTag(obj, values, "path"); err != nil {
-                return err
-            }
-            return nil
-        },
-    }
+	// Validator 绑定的参数检验工具
+	Validator binding.StructValidator = &defaultValidator{}
+	// BeforeValidator 返回false跳过验证
+	BeforeValidator = func(*gin.Context, any) bool { return true }
+	// ResultHandler 自定义写入返回结果
+	ResultHandler = func(ctx *gin.Context, entity, res any) {
+		if res == ResultDoNothing {
+			return
+		}
+		if res == nil {
+			ctx.JSON(200, Ok(res))
+		} else if r, ok := res.(Res); ok {
+			ctx.JSON(200, r)
+		} else if err, ok := res.(error); ok {
+			ctx.JSON(500, Error(err))
+		} else {
+			ctx.JSON(200, Ok(res))
+		}
+	}
+	BindingErrorHandler = func(ctx *gin.Context, entity any, res error) { ResultHandler(ctx, entity, res) }
+	// BindByTag 自定义Tag与数据绑定的关系
+	BindByTag = map[string]func(any, *gin.Context) error{
+		"query": func(obj any, context *gin.Context) error {
+			values := context.Request.URL.Query()
+			if err := binding.MapFormWithTag(obj, values, "query"); err != nil {
+				return err
+			}
+			return nil
+		},
+		"form": func(obj any, context *gin.Context) error {
+			req := context.Request
+			if req.Method == "POST" || req.Method == "PUT" {
+				if context.ContentType() == binding.MIMEMultipartPOSTForm {
+					return binding.FormMultipart.Bind(req, obj)
+				} else {
+					return binding.Form.Bind(req, obj)
+				}
+			}
+			return nil
+		},
+		"json": func(obj any, context *gin.Context) error {
+			if context.Request.Method == "POST" || context.Request.Method == "PUT" {
+				return context.BindJSON(obj)
+			}
+			return nil
+		},
+		"header": func(obj any, context *gin.Context) error {
+			return context.BindHeader(obj)
+		},
+		"path": func(obj any, context *gin.Context) error {
+			params := context.Params
+			values := make(map[string][]string, len(params))
+			for _, param := range params {
+				values[param.Key] = []string{param.Value}
+			}
+			if err := binding.MapFormWithTag(obj, values, "path"); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
 
-    g              *gin.RouterGroup
-    groups         = make(map[string]*gin.RouterGroup)
-    groupsHandlers = make(map[string][]gin.HandlerFunc)
-    regFns         []func()
-    lock           sync.Mutex
-    allMethods     = []string{
-        http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch,
-        http.MethodHead, http.MethodOptions, http.MethodDelete, http.MethodConnect,
-        http.MethodTrace,
-    }
+	g			  *gin.RouterGroup
+	groups		 = make(map[string]*gin.RouterGroup)
+	groupsHandlers = make(map[string][]gin.HandlerFunc)
+	regFns		 []func()
+	lock		   sync.Mutex
+	allMethods	 = []string{
+		http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch,
+		http.MethodHead, http.MethodOptions, http.MethodDelete, http.MethodConnect,
+		http.MethodTrace,
+	}
 )
 
 func RegisterFn(f func()) {
-    regFns = append(regFns, f)
+	regFns = append(regFns, f)
 }
 
 // RegisterRouter 注册路由,当gin不是同一个实例时,Group中信息也会被更新
 func RegisterRouter(Gin *gin.RouterGroup) {
-    if g != Gin {
-        g = Gin
-        // 生成新的groups,允许重复绑定到多个gin实例
-        groups = make(map[string]*gin.RouterGroup)
-    }
-    for _, f := range regFns {
-        f()
-    }
+	if g != Gin {
+		g = Gin
+		// 生成新的groups,允许重复绑定到多个gin实例
+		groups = make(map[string]*gin.RouterGroup)
+	}
+	for _, f := range regFns {
+		f()
+	}
 }
 
 func DoRegisterGinRouter(group string, handler gin.HandlerFunc, relativePath string, methods ...string) {
-    g1 := GetGroup(group)
-    if len(methods) <= 0 {
-        methods = allMethods
-    }
-    for _, m := range methods {
-        g1.Handle(m, relativePath, handler)
-    }
+	g1 := GetGroup(group)
+	if len(methods) <= 0 {
+		methods = allMethods
+	}
+	for _, m := range methods {
+		g1.Handle(m, relativePath, handler)
+	}
 }
 
 // BindGin 绑定gin,当gin不是同一个实例时,Group中信息也会被更新
 func BindGin(Gin *gin.RouterGroup) {
-    lock.Lock()
-    defer lock.Unlock()
-    if g != Gin {
-        g = Gin
-        // 生成新的groups,允许重复绑定到多个gin实例
-        groups = make(map[string]*gin.RouterGroup)
-    }
+	lock.Lock()
+	defer lock.Unlock()
+	if g != Gin {
+		g = Gin
+		// 生成新的groups,允许重复绑定到多个gin实例
+		groups = make(map[string]*gin.RouterGroup)
+	}
 }
 
 // GetGroup 获取一个组,用于注册中间件
 func GetGroup(group string) *gin.RouterGroup {
-    lock.Lock()
-    defer lock.Unlock()
-    routerGroup := groups[group]
-    if routerGroup == nil {
-        if g == nil {
-            panic("未绑定gin,需要先使用RegisterRouter")
-        }
-        routerGroup = g.Group(group)
-        routerGroup.Handlers = append(routerGroup.Handlers, groupsHandlers[group]...)
-        groups[group] = routerGroup
-    }
-    return routerGroup
+	lock.Lock()
+	defer lock.Unlock()
+	routerGroup := groups[group]
+	if routerGroup == nil {
+		if g == nil {
+			panic("未绑定gin,需要先使用RegisterRouter")
+		}
+		routerGroup = g.Group(group)
+		routerGroup.Handlers = append(routerGroup.Handlers, groupsHandlers[group]...)
+		groups[group] = routerGroup
+	}
+	return routerGroup
 }
 
 // AddGroupHandlers 统一维护中间件,防止加载顺序不一致导致的未注册成功
 func AddGroupHandlers(group string, handlers ...gin.HandlerFunc) {
-    lock.Lock()
-    defer lock.Unlock()
-    groupsHandlers[group] = append(groupsHandlers[group], handlers...)
-    if g, ok := groups[group]; ok {
-        g.Handlers = append(g.Handlers, handlers...)
-    }
+	lock.Lock()
+	defer lock.Unlock()
+	groupsHandlers[group] = append(groupsHandlers[group], handlers...)
+	if g, ok := groups[group]; ok {
+		g.Handlers = append(g.Handlers, handlers...)
+	}
 }
 
 type LifeCycleManager[T any] interface {
-    GetNewSelf() *T
-    ReclaimSelf(*T)
+	GetNewSelf() *T
+	ReclaimSelf(*T)
 }
 
 func ToBindM(f func(*gin.Context) any) gin.HandlerFunc {
-    return func(context *gin.Context) { ResultHandler(context, nil, f(context)) }
+	return func(context *gin.Context) { ResultHandler(context, nil, f(context)) }
 }
 
 func ToBindF[T any](structPointer *T, _ func(*gin.Context) any, funcName string) gin.HandlerFunc {
-    return toBind[T](structPointer, funcName)
+	return toBind[T](structPointer, funcName)
 }
 
 func toBind[T any](structPointer *T, funcName string) gin.HandlerFunc {
-    t := reflect.TypeOf(structPointer)
-    m, ok := t.MethodByName(funcName)
-    if !ok {
-        panic("未找到方法" + funcName + ",请确定方法参数为指针")
-    }
-    waitBindTag := findTags(nil, t.Elem())
-    var lifeCycleCaller, _ = any(structPointer).(LifeCycleManager[T])
-    if lifeCycleCaller != nil {
-        t1 := lifeCycleCaller.GetNewSelf()
-        if t1 == nil {
-            panic("自定义生命周期管理器返回为nil")
-        }
-        lifeCycleCaller.ReclaimSelf(t1)
-    }
-    f := (m.Func.Interface()).(func(*T, *gin.Context) any)
-    return func(context *gin.Context) {
-        var obj *T
-        if lifeCycleCaller != nil {
-            obj = lifeCycleCaller.GetNewSelf()
-            defer lifeCycleCaller.ReclaimSelf(obj)
-        } else {
-            newObj := *structPointer
-            obj = &newObj
-        }
-        bind := false
-        for _, s := range waitBindTag {
-            f := BindByTag[s]
-            if f != nil {
-                bind = true
-                err := f(obj, context)
-                if err != nil {
-                    context.Status(400)
-                    _ = context.Error(err)
-                    context.Abort()
-                    BindingErrorHandler(context, obj, err)
-                    return
-                }
-            }
-        }
-        if bind && BeforeValidator(context, obj) {
-            err := validate(obj)
-            if err != nil {
-                context.Status(400)
-                _ = context.Error(err)
-                context.Abort()
-                BindingErrorHandler(context, obj, err)
-                return
-            }
-        }
-        ResultHandler(context, obj, f(obj, context))
-    }
+	t := reflect.TypeOf(structPointer)
+	m, ok := t.MethodByName(funcName)
+	if !ok {
+		panic("未找到方法" + funcName + ",请确定方法参数为指针")
+	}
+	waitBindTag := findTags(nil, t.Elem())
+	var lifeCycleCaller, _ = any(structPointer).(LifeCycleManager[T])
+	if lifeCycleCaller != nil {
+		t1 := lifeCycleCaller.GetNewSelf()
+		if t1 == nil {
+			panic("自定义生命周期管理器返回为nil")
+		}
+		lifeCycleCaller.ReclaimSelf(t1)
+	}
+	f := (m.Func.Interface()).(func(*T, *gin.Context) any)
+	return func(context *gin.Context) {
+		var obj *T
+		if lifeCycleCaller != nil {
+			obj = lifeCycleCaller.GetNewSelf()
+			defer lifeCycleCaller.ReclaimSelf(obj)
+		} else {
+			newObj := *structPointer
+			obj = &newObj
+		}
+		bind := false
+		for _, s := range waitBindTag {
+			f := BindByTag[s]
+			if f != nil {
+				bind = true
+				err := f(obj, context)
+				if err != nil {
+					context.Status(400)
+					_ = context.Error(err)
+					context.Abort()
+					BindingErrorHandler(context, obj, err)
+					return
+				}
+			}
+		}
+		if bind && BeforeValidator(context, obj) {
+			err := validate(obj)
+			if err != nil {
+				context.Status(400)
+				_ = context.Error(err)
+				context.Abort()
+				BindingErrorHandler(context, obj, err)
+				return
+			}
+		}
+		ResultHandler(context, obj, f(obj, context))
+	}
 }
 
 func findTags(waitBindTag []string, t reflect.Type) []string {
-    waitBindTag = appendTagByType(t, waitBindTag)
-    numField := t.NumField()
-    for i := 0; i < numField; i++ {
-        field := t.Field(i)
-        t := field.Type
-        if t.Kind() == reflect.Pointer {
-            t = t.Elem()
-        }
-        name := t.Name()
-        if field.Name == name {
-            waitBindTag = findTags(waitBindTag, t)
-        }
-    }
-    return waitBindTag
+	waitBindTag = appendTagByType(t, waitBindTag)
+	numField := t.NumField()
+	for i := 0; i < numField; i++ {
+		field := t.Field(i)
+		t := field.Type
+		if t.Kind() == reflect.Pointer {
+			t = t.Elem()
+		}
+		name := t.Name()
+		if field.Name == name {
+			waitBindTag = findTags(waitBindTag, t)
+		}
+	}
+	return waitBindTag
 }
 func contains(arr []string, test string) bool {
-    for _, s := range arr {
-        if s == test {
-            return true
-        }
-    }
-    return false
+	for _, s := range arr {
+		if s == test {
+			return true
+		}
+	}
+	return false
 }
 func appendTagByType(t reflect.Type, waitBindTag []string) []string {
-    for i := 0; i < t.NumField(); i++ {
-        tag := t.Field(i).Tag
-        if tag == "" {
-            continue
-        }
-        split := strings.Split(string(tag), " ")
-        for _, s := range split {
-            types := strings.SplitN(s, ":", 2)[0]
-            if types != "" && !contains(waitBindTag, types) {
-                waitBindTag = append(waitBindTag, types)
-            }
-        }
-    }
-    return waitBindTag
+	for i := 0; i < t.NumField(); i++ {
+		tag := t.Field(i).Tag
+		if tag == "" {
+			continue
+		}
+		split := strings.Split(string(tag), " ")
+		for _, s := range split {
+			types := strings.SplitN(s, ":", 2)[0]
+			if types != "" && !contains(waitBindTag, types) {
+				waitBindTag = append(waitBindTag, types)
+			}
+		}
+	}
+	return waitBindTag
 }
 
 // ChangeValidateTag 修改Validator的使用的Tag名称
 func ChangeValidateTag(name string) {
-    if d, ok := Validator.(*defaultValidator); ok {
-        d.ValidateStruct(struct{}{})
-        d.validate.SetTagName(name)
-    } else {
-        panic("自定义Validator不支持修改TagName")
-    }
+	if d, ok := Validator.(*defaultValidator); ok {
+		d.ValidateStruct(struct{}{})
+		d.validate.SetTagName(name)
+	} else {
+		panic("自定义Validator不支持修改TagName")
+	}
 }
 
 func validate(obj any) error {
-    if Validator == nil {
-        return nil
-    }
-    return Validator.ValidateStruct(obj)
+	if Validator == nil {
+		return nil
+	}
+	return Validator.ValidateStruct(obj)
 }
 
 type defaultValidator struct {
-    once     sync.Once
-    validate *validator.Validate
+	once	 sync.Once
+	validate *validator.Validate
 }
 
 func (v *defaultValidator) ValidateStruct(obj interface{}) error {
-    if obj == nil {
-        return nil
-    }
-    v.once.Do(func() {
-        v.validate = validator.New()
-    })
-    value := reflect.ValueOf(obj)
-    switch value.Kind() {
-    case reflect.Ptr:
-        return v.ValidateStruct(value.Elem().Interface())
-    case reflect.Struct:
-        return v.validate.Struct(obj)
-    case reflect.Slice, reflect.Array:
-        count := value.Len()
-        validateRet := make(binding.SliceValidationError, 0)
-        for i := 0; i < count; i++ {
-            if err := v.ValidateStruct(value.Index(i).Interface()); err != nil {
-                validateRet = append(validateRet, err)
-            }
-        }
-        if len(validateRet) == 0 {
-            return nil
-        }
-        return validateRet
-    default:
-        return nil
-    }
+	if obj == nil {
+		return nil
+	}
+	v.once.Do(func() {
+		v.validate = validator.New()
+	})
+	value := reflect.ValueOf(obj)
+	switch value.Kind() {
+	case reflect.Ptr:
+		return v.ValidateStruct(value.Elem().Interface())
+	case reflect.Struct:
+		return v.validate.Struct(obj)
+	case reflect.Slice, reflect.Array:
+		count := value.Len()
+		validateRet := make(binding.SliceValidationError, 0)
+		for i := 0; i < count; i++ {
+			if err := v.ValidateStruct(value.Index(i).Interface()); err != nil {
+				validateRet = append(validateRet, err)
+			}
+		}
+		if len(validateRet) == 0 {
+			return nil
+		}
+		return validateRet
+	default:
+		return nil
+	}
 }
 
 func (v *defaultValidator) Engine() interface{} {
-    v.lazyinit()
-    return v.validate
+	v.lazyinit()
+	return v.validate
 }
 
 func (v *defaultValidator) lazyinit() {
-    v.once.Do(func() {
-        v.validate = validator.New()
-    })
+	v.once.Do(func() {
+		v.validate = validator.New()
+	})
 }
 
 var (
-    errorHandles []struct {
-        err error
-        f   func(error *gin.Error, context *gin.Context) bool
-    }
-    errorHandlesT []struct {
-        err func() error
-        f   func(error *gin.Error, context *gin.Context) bool
-    }
+	errorHandles []struct {
+		err error
+		f   func(error *gin.Error, context *gin.Context) bool
+	}
+	errorHandlesT []struct {
+		err func() error
+		f   func(error *gin.Error, context *gin.Context) bool
+	}
 )
 
 // AddErrorHandle 为某些错误添加自定义处理逻辑,返回值为是否处理完成
 func AddErrorHandle(err error, handle func(error *gin.Error, context *gin.Context) bool) {
-    lock.Lock()
-    defer lock.Unlock()
-    errorHandles = append(errorHandles, struct {
-        err error
-        f   func(error *gin.Error, context *gin.Context) bool
-    }{
-        err: err,
-        f:   handle,
-    })
+	lock.Lock()
+	defer lock.Unlock()
+	errorHandles = append(errorHandles, struct {
+		err error
+		f   func(error *gin.Error, context *gin.Context) bool
+	}{
+		err: err,
+		f:   handle,
+	})
 }
 
 // AddErrorHandleByType 为某些自定错误类型添加自定义处理逻辑,返回值为是否处理完成
 func AddErrorHandleByType[TP interface {
-    *T
-    Error() string
+	*T
+	Error() string
 }, T any](handle func(error *gin.Error, context *gin.Context) bool) {
-    lock.Lock()
-    defer lock.Unlock()
-    errorHandlesT = append(errorHandlesT, struct {
-        err func() error
-        f   func(error *gin.Error, context *gin.Context) bool
-    }{
-        err: func() error { return TP(nil) },
-        f:   handle,
-    })
+	lock.Lock()
+	defer lock.Unlock()
+	errorHandlesT = append(errorHandlesT, struct {
+		err func() error
+		f   func(error *gin.Error, context *gin.Context) bool
+	}{
+		err: func() error { return TP(nil) },
+		f:   handle,
+	})
 }
 
 // RegisterErrorHandle 简单的统一异常拦截,可自定义
 func RegisterErrorHandle(ginEngine *gin.Engine) {
-    ginEngine.Handlers = append([]gin.HandlerFunc{ErrorHandle()}, ginEngine.Handlers...)
+	ginEngine.Handlers = append([]gin.HandlerFunc{ErrorHandle()}, ginEngine.Handlers...)
 }
 
 // ErrorHandle 简单的统一异常拦截,可自定义
 func ErrorHandle() gin.HandlerFunc {
-    return func(context *gin.Context) {
-        context.Next()
-        es := context.Errors
-        if len(es) == 0 {
-            return
-        }
-        e := es.Last()
-        for i := 0; i < len(errorHandles); i++ {
-            if errors.Is(errorHandles[i].err, e.Err) {
-                if errorHandles[i].f(e, context) {
-                    return
-                }
-            }
-        }
-        for i := 0; i < len(errorHandlesT); i++ {
-            err := errorHandlesT[i].err()
-            if errors.As(e.Err, &err) {
-                if errorHandles[i].f(e, context) {
-                    return
-                }
-            }
-        }
-        status := context.Writer.Status()
-        if status == 200 {
-            status = 500
-        }
-        context.JSON(status, Error(e.Err))
-    }
+	return func(context *gin.Context) {
+		context.Next()
+		es := context.Errors
+		if len(es) == 0 {
+			return
+		}
+		e := es.Last()
+		for i := 0; i < len(errorHandles); i++ {
+			if errors.Is(errorHandles[i].err, e.Err) {
+				if errorHandles[i].f(e, context) {
+					return
+				}
+			}
+		}
+		for i := 0; i < len(errorHandlesT); i++ {
+			err := errorHandlesT[i].err()
+			if errors.As(e.Err, &err) {
+				if errorHandles[i].f(e, context) {
+					return
+				}
+			}
+		}
+		status := context.Writer.Status()
+		if status == 200 {
+			status = 500
+		}
+		context.JSON(status, Error(e.Err))
+	}
 }
 
 type flag uint8
 
 const (
-    ResultDoNothing flag = iota + 1
+	ResultDoNothing flag = iota + 1
 )
 
 type Res struct {
-    Code    int    `json:"code"`
-    Data    any    `json:"data"`
-    Message string `json:"message,omitempty"`
+	Code	int	`json:"code"`
+	Data	any	`json:"data"`
+	Message string `json:"message,omitempty"`
 }
 
 func New(code int, message string) Res {
-    return Res{Code: code, Message: message}
+	return Res{Code: code, Message: message}
 }
 
 func Ok(data any) Res {
-    return Res{Code: 0, Data: data}
+	return Res{Code: 0, Data: data}
 }
 
 func Err(str string) Res {
-    return Res{Code: 1, Message: str}
+	return Res{Code: 1, Message: str}
 }
 
 func Error(err error) Res {
-    return Res{Code: 1, Message: err.Error()}
+	return Res{Code: 1, Message: err.Error()}
 }

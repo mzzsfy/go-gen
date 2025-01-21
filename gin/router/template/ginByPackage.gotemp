@@ -4,34 +4,34 @@
 package routers
 
 import (
-    "{{ .PackageBaseName }}/{{ .PackageName }}"
-    "{{ .PackageBaseName }}/routers/reg"
+	"{{ .PackageBaseName }}/{{ .PackageName }}"
+	"{{ .PackageBaseName }}/routers/reg"
 )
 
 //function
 func init() {
-    reg.RegisterFn(func() {
-        {{- range $f := .Functions }}
-        {{- range $s := $f.Paths}}
-        reg.DoRegisterGinRouter("{{ $f.GroupPath }}", reg.ToBindM({{ $.PackageName }}.{{ $f.Name }}),"{{ $s.PathMethod }}")
-        {{- end -}}
-        {{- end}}
-    })
+	reg.RegisterFn(func() {
+		{{- range $f := .Functions }}
+		{{- range $s := $f.Paths}}
+		reg.DoRegisterGinRouter("{{ $f.GroupPath }}", reg.ToBindM({{ $.PackageName }}.{{ $f.Name }}),"{{ $s.PathMethod }}")
+		{{- end -}}
+		{{- end}}
+	})
 }
 
 //struct function
 func init() {
-    reg.RegisterFn(func() {
-        {{- range $f := .StructFunctions }}
-        {
-            p := &{{ $.PackageName }}.{{ $f.StructName }}{}
-            {{- range $i,$fn := $f.Functions}}
-            h{{ $i }} := reg.ToBindF(p,p.{{ $fn.Name }}, "{{ $fn.Name }}")
-            {{- range $s := $fn.Paths}}
-            reg.DoRegisterGinRouter("{{ $fn.GroupPath }}", h{{ $i }}, "{{$s.PathMethod}}")
-            {{- end -}}
-            {{- end}}
-        }
-        {{- end}}
-    })
+	reg.RegisterFn(func() {
+		{{- range $f := .StructFunctions }}
+		{
+			p := &{{ $.PackageName }}.{{ $f.StructName }}{}
+			{{- range $i,$fn := $f.Functions}}
+			h{{ $i }} := reg.ToBindF(p, p.{{ $fn.Name }}, "{{ $fn.Name }}")
+			{{- range $s := $fn.Paths}}
+			reg.DoRegisterGinRouter("{{ $fn.GroupPath }}", h{{ $i }}, "{{$s.PathMethod}}")
+			{{- end -}}
+			{{- end}}
+		}
+		{{- end}}
+	})
 }
