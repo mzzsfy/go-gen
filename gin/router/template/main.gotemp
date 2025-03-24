@@ -406,6 +406,10 @@ const (
 	ResultDoNothing flag = iota + 1
 )
 
+var (
+    ResultDoNothingAny any = ResultDoNothing
+)
+
 type Res struct {
 	Code	int	`json:"code"`
 	Data	any	`json:"data"`
