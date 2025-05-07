@@ -4,357 +4,357 @@
 package routers
 
 import (
-"bufio"
-"context"
-"github.com/mzzsfy/go-util/helper"
-"io"
-"net"
-"net/http"
-"net/url"
-"strings"
-"sync"
+	"bufio"
+	"context"
+	"github.com/mzzsfy/go-util/helper"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
+	"sync"
 )
 
 type Ctx interface {
-BeforeHeader(fn func())
-BeforeBody(fn func())
-OnBodyWrite(fn func())
+	BeforeHeader(fn func())
+	BeforeBody(fn func())
+	OnBodyWrite(fn func())
 
-Request() *http.Request
-SetRequest(r *http.Request)
-Response() Response
+	Request() *http.Request
+	SetRequest(r *http.Request)
+	Response() Response
 
-ClientIP() string
-Path() string
-PathParam(name string) string
-PathParams() func() (string, string)
-QueryParam(name string) string
-QueryParams() url.Values
+	ClientIP() string
+	Path() string
+	PathParam(name string) string
+	PathParams() func() (string, string)
+	QueryParam(name string) string
+	QueryParams() url.Values
 
-Cookie(name string) (*http.Cookie, error)
-Cookies() []*http.Cookie
-SetCookie(cookie *http.Cookie)
+	Cookie(name string) (*http.Cookie, error)
+	Cookies() []*http.Cookie
+	SetCookie(cookie *http.Cookie)
 
-SetValue(key any, val any)
-GetValue(key any) any
-Context() context.Context
-SetContext(context.Context)
+	SetValue(key any, val any)
+	GetValue(key any) any
+	Context() context.Context
+	SetContext(context.Context)
 
-ContentType() string
+	ContentType() string
 
-Raw(code int, b []byte) error
-Render(code int, render func(http.ResponseWriter) error) error
-Template(code int, name string, data any) error
-String(code int, s string) error
-JSON(code int, i any) error
-XML(code int, i any) error
-Stream(code int, contentType string, r io.Reader) error
-Redirect(code int, url string) error
+	Raw(code int, b []byte) error
+	Render(code int, render func(http.ResponseWriter) error) error
+	Template(code int, name string, data any) error
+	String(code int, s string) error
+	JSON(code int, i any) error
+	XML(code int, i any) error
+	Stream(code int, contentType string, r io.Reader) error
+	Redirect(code int, url string) error
 
-Logger() Logger
-SetLogger(l Logger)
+	Logger() Logger
+	SetLogger(l Logger)
 
-SetHeader(key string, value string)
+	SetHeader(key string, value string)
 
-Status(code int)
-Abort()
-SetError(error)
-Error() error
-Validate(obj any) error
+	Status(code int)
+	Abort()
+	SetError(error)
+	Error() error
+	Validate(obj any) error
 }
 
 type Res struct {
-Code    int    `json:"code"`
-Data    any    `json:"data"`
-Message string `json:"message,omitempty"`
+	Code	int	`json:"code"`
+	Data	any	`json:"data"`
+	Message string `json:"message,omitempty"`
 }
 
 func New(code int, message string) Res {
-return Res{Code: code, Message: message}
+	return Res{Code: code, Message: message}
 }
 
 func Ok(data any) Res {
-return Res{Code: 0, Data: data}
+	return Res{Code: 0, Data: data}
 }
 
 func Err(str string) Res {
-return Res{Code: 1, Message: str}
+	return Res{Code: 1, Message: str}
 }
 
 func Error(err error) Res {
-return Res{Code: 1, Message: err.Error()}
+	return Res{Code: 1, Message: err.Error()}
 }
 
 type Response interface {
-http.ResponseWriter
-StatusCode() int
+	http.ResponseWriter
+	StatusCode() int
 }
 
 func newResponse(w http.ResponseWriter) *responseWriter {
-return &responseWriter{
-w:      w,
-size:   -1,
-status: 200,
-}
+	return &responseWriter{
+		w:	  w,
+		size:   -1,
+		status: 200,
+	}
 }
 
 type responseWriter struct {
-w            http.ResponseWriter
-size         int
-status       int
-beforeHeader []func()
-beforeBody   []func()
-onBodyWrite  []func()
+	w			http.ResponseWriter
+	size		 int
+	status	   int
+	beforeHeader []func()
+	beforeBody   []func()
+	onBodyWrite  []func()
 }
 
 func (w *responseWriter) Pusher() http.Pusher {
-panic("not implemented")
+	panic("not implemented")
 }
 
 func (w *responseWriter) Header() http.Header {
-return w.w.Header()
+	return w.w.Header()
 }
 
 func (w *responseWriter) StatusCode() int {
-return w.status
+	return w.status
 }
 
 func (w *responseWriter) Unwrap() http.ResponseWriter {
-return w.w
+	return w.w
 }
 
 func (w *responseWriter) reset(writer http.ResponseWriter) {
-w.w = writer
-w.size = -1
-w.status = 200
+	w.w = writer
+	w.size = -1
+	w.status = 200
 }
 
 func (w *responseWriter) WriteHeader(code int) {
-if code > 0 && w.status != code {
-if w.Written() {
-DefaultLogger.LogV("WARN", "http状态已写入，忽略不生效的状态设置", w.status, code)
-return
-}
-w.status = code
-}
+	if code > 0 && w.status != code {
+		if w.Written() {
+			DefaultLogger.LogV("WARN", "http状态已写入，忽略不生效的状态设置", w.status, code)
+			return
+		}
+		w.status = code
+	}
 }
 
 func (w *responseWriter) WriteHeaderNow() {
-written := w.Written()
-if !written {
-w.size = 0
-for _, f := range w.beforeHeader {
-f()
-}
-w.w.WriteHeader(w.status)
-}
+	written := w.Written()
+	if !written {
+		w.size = 0
+		for _, f := range w.beforeHeader {
+			f()
+		}
+		w.w.WriteHeader(w.status)
+	}
 }
 
 func (w *responseWriter) beforeBodyWrite() {
-for _, f := range w.beforeBody {
-f()
-}
+	for _, f := range w.beforeBody {
+		f()
+	}
 }
 
 func (w *responseWriter) afterBodyWrite() {
-for _, f := range w.onBodyWrite {
-f()
-}
+	for _, f := range w.onBodyWrite {
+		f()
+	}
 }
 
 func (w *responseWriter) Write(data []byte) (n int, err error) {
-written := w.Written()
-w.WriteHeaderNow()
-if !written {
-w.beforeBodyWrite()
-}
-n, err = w.w.Write(data)
-w.size += n
-w.afterBodyWrite()
-return
+	written := w.Written()
+	w.WriteHeaderNow()
+	if !written {
+		w.beforeBodyWrite()
+	}
+	n, err = w.w.Write(data)
+	w.size += n
+	w.afterBodyWrite()
+	return
 }
 
 func (w *responseWriter) WriteString(s string) (n int, err error) {
-written := w.Written()
-w.WriteHeaderNow()
-if !written {
-w.beforeBodyWrite()
-}
-n, err = io.WriteString(w.w, s)
-w.size += n
-w.afterBodyWrite()
-return
+	written := w.Written()
+	w.WriteHeaderNow()
+	if !written {
+		w.beforeBodyWrite()
+	}
+	n, err = io.WriteString(w.w, s)
+	w.size += n
+	w.afterBodyWrite()
+	return
 }
 
 func (w *responseWriter) Status() int {
-return w.status
+	return w.status
 }
 
 func (w *responseWriter) Size() int {
-return w.size
+	return w.size
 }
 
 func (w *responseWriter) Written() bool {
-return w.size != -1
+	return w.size != -1
 }
 
 func (w *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-if w.size < 0 {
-w.size = 0
-}
-return w.w.(http.Hijacker).Hijack()
+	if w.size < 0 {
+		w.size = 0
+	}
+	return w.w.(http.Hijacker).Hijack()
 }
 
 func (w *responseWriter) CloseNotify() <-chan bool {
-return w.w.(http.CloseNotifier).CloseNotify()
+	return w.w.(http.CloseNotifier).CloseNotify()
 }
 
 func (w *responseWriter) Flush() {
-w.WriteHeaderNow()
-if f, ok := w.w.(http.Flusher); ok {
-f.Flush()
-}
+	w.WriteHeaderNow()
+	if f, ok := w.w.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func newBaseCtx(r *http.Request, rw http.ResponseWriter) *baseCtx {
-return &baseCtx{
-request:  r,
-logger:   DefaultLogger,
-response: newResponse(rw),
-ctx:      r.Context(),
-}
+	return &baseCtx{
+		request:  r,
+		logger:   DefaultLogger,
+		response: newResponse(rw),
+		ctx:	  r.Context(),
+	}
 }
 
 type baseCtx struct {
-lock     sync.Mutex
-request  *http.Request
-logger   Logger
-response *responseWriter
-query    url.Values
-ctx      context.Context
-err      error
+	lock	 sync.Mutex
+	request  *http.Request
+	logger   Logger
+	response *responseWriter
+	query	url.Values
+	ctx	  context.Context
+	err	  error
 }
 
 func (b *baseCtx) Response() Response {
-return b.response
+	return b.response
 }
 
 func (b *baseCtx) BeforeHeader(fn func()) {
-b.lock.Lock()
-b.response.beforeHeader = append(b.response.beforeHeader, fn)
-b.lock.Unlock()
+	b.lock.Lock()
+	b.response.beforeHeader = append(b.response.beforeHeader, fn)
+	b.lock.Unlock()
 }
 
 func (b *baseCtx) BeforeBody(fn func()) {
-b.lock.Lock()
-b.response.beforeBody = append(b.response.beforeBody, fn)
-b.lock.Unlock()
+	b.lock.Lock()
+	b.response.beforeBody = append(b.response.beforeBody, fn)
+	b.lock.Unlock()
 }
 
 func (b *baseCtx) OnBodyWrite(fn func()) {
-b.lock.Lock()
-b.response.onBodyWrite = append(b.response.onBodyWrite, fn)
-b.lock.Unlock()
+	b.lock.Lock()
+	b.response.onBodyWrite = append(b.response.onBodyWrite, fn)
+	b.lock.Unlock()
 }
 
 func (b *baseCtx) Request() *http.Request {
-return b.request
+	return b.request
 }
 
 func (b *baseCtx) SetRequest(r *http.Request) {
-if r == nil {
-panic("request is nil")
-}
-b.request = r
+	if r == nil {
+		panic("request is nil")
+	}
+	b.request = r
 }
 
 func (b *baseCtx) ContentType() string {
-before, _, _ := strings.Cut(b.request.Header.Get("Content-Type"), ";")
-return strings.TrimSpace(before)
+	before, _, _ := strings.Cut(b.request.Header.Get("Content-Type"), ";")
+	return strings.TrimSpace(before)
 }
 func (b *baseCtx) Path() string {
-return b.request.URL.Path
+	return b.request.URL.Path
 }
 
 func (b *baseCtx) QueryParam(name string) string {
-return b.QueryParams().Get(name)
+	return b.QueryParams().Get(name)
 }
 
 func (b *baseCtx) QueryParams() url.Values {
-if b.query == nil {
-b.query = b.request.URL.Query()
-}
-return b.query
+	if b.query == nil {
+		b.query = b.request.URL.Query()
+	}
+	return b.query
 }
 func (b *baseCtx) Cookie(name string) (*http.Cookie, error) {
-return b.request.Cookie(name)
+	return b.request.Cookie(name)
 }
 func (b *baseCtx) Cookies() []*http.Cookie {
-return b.request.Cookies()
+	return b.request.Cookies()
 }
 func (b *baseCtx) Status(code int) {
-b.response.WriteHeader(code)
+	b.response.WriteHeader(code)
 }
 func (b *baseCtx) SetCookie(cookie *http.Cookie) {
-http.SetCookie(b.response, cookie)
+	http.SetCookie(b.response, cookie)
 }
 
 func (b *baseCtx) SetHeader(key string, value string) {
-b.response.Header().Set(key, value)
+	b.response.Header().Set(key, value)
 }
 
 func (b *baseCtx) Raw(code int, bs []byte) error {
-b.response.WriteHeader(code)
-_, err := b.response.Write(bs)
-return err
+	b.response.WriteHeader(code)
+	_, err := b.response.Write(bs)
+	return err
 }
 
 func (b *baseCtx) Stream(code int, contentType string, r io.Reader) error {
-b.response.Header().Set("Content-Type", contentType)
-b.response.WriteHeader(code)
-_, err := io.Copy(b.response, r)
-return err
+	b.response.Header().Set("Content-Type", contentType)
+	b.response.WriteHeader(code)
+	_, err := io.Copy(b.response, r)
+	return err
 }
 
 func (b *baseCtx) Redirect(code int, url string) error {
-if code < 300 || code > 308 {
-return helper.StringError("redirect code must be 300-308")
-}
-b.response.Header().Set("Location", url)
-return b.Raw(code, nil)
+	if code < 300 || code > 308 {
+		return helper.StringError("redirect code must be 300-308")
+	}
+	b.response.Header().Set("Location", url)
+	return b.Raw(code, nil)
 }
 
 func (b *baseCtx) Logger() Logger {
-if b.logger == nil {
-return DefaultLogger
-}
-return b.logger
+	if b.logger == nil {
+		return DefaultLogger
+	}
+	return b.logger
 }
 
 func (b *baseCtx) SetLogger(l Logger) {
-b.logger = l
+	b.logger = l
 }
 
 func (b *baseCtx) SetError(err error) {
-b.err = err
+	b.err = err
 }
 
 func (b *baseCtx) Error() error {
-return b.err
+	return b.err
 }
 
 func (b *baseCtx) SetContext(ctx context.Context) {
-b.ctx = ctx
+	b.ctx = ctx
 }
 
 func (b *baseCtx) Context() context.Context {
-return b.ctx
+	return b.ctx
 }
 
 func (b *baseCtx) GetValue(key any) any {
-return b.ctx.Value(key)
+	return b.ctx.Value(key)
 }
 
 func (b *baseCtx) SetValue(key, value any) {
-b.ctx = context.WithValue(b.ctx, key, value)
+	b.ctx = context.WithValue(b.ctx, key, value)
 }

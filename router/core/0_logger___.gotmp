@@ -4,40 +4,40 @@
 package routers
 
 import (
-"fmt"
-"time"
+	"fmt"
+	"time"
 )
 
 type Logger interface {
-Log(message string, args ...any)
-LogV(lv string, message string, args ...any)
-LogVF(lv string, message string, f func() []any)
+	Log(message string, args ...any)
+	LogV(lv string, message string, args ...any)
+	LogVF(lv string, message string, f func() []any)
 }
 
 type WithCtx interface {
-Logger
-WithCtx(Ctx) Logger
+	Logger
+	WithCtx(Ctx) Logger
 }
 
 type consoleLogger struct {
-path string
+	path string
 }
 
 func (l consoleLogger) Log(message string, args ...any) {
-l.LogV("INFO", message, args...)
+	l.LogV("INFO", message, args...)
 }
 
 func (l consoleLogger) LogV(lv string, message string, args ...any) {
-if l.path != "" {
-fmt.Printf("%s[%s] %s %s\n", time.Now().Format(time.DateTime), lv, l.path, fmt.Sprintf(message, args...))
-}
-fmt.Printf("%s[%s] %s\n", time.Now().Format(time.DateTime), lv, fmt.Sprintf(message, args...))
+	if l.path != "" {
+		fmt.Printf("%s[%s] %s %s\n", time.Now().Format(time.DateTime), lv, l.path, fmt.Sprintf(message, args...))
+	}
+	fmt.Printf("%s[%s] %s\n", time.Now().Format(time.DateTime), lv, fmt.Sprintf(message, args...))
 }
 
 func (l consoleLogger) LogVF(lv string, message string, f func() []any) {
-l.LogV(lv, message, f())
+	l.LogV(lv, message, f())
 }
 
 func (l consoleLogger) WithCtx(ctx Ctx) Logger {
-return consoleLogger{path: ctx.Path()}
+	return consoleLogger{path: ctx.Path()}
 }

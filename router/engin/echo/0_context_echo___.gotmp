@@ -4,64 +4,64 @@
 package routers
 
 import (
-"github.com/labstack/echo/v4"
-"net/http"
+	"github.com/labstack/echo/v4"
+	"net/http"
 )
 
 var _ Ctx = (*EchoCtx)(nil)
 
 type EchoCtx struct {
-r   Router
-ctx echo.Context
-baseCtx
-abort bool
+	r   Router
+	ctx echo.Context
+	baseCtx
+	abort bool
 }
 
 func (c *EchoCtx) ClientIP() string {
-return c.ctx.RealIP()
+	return c.ctx.RealIP()
 }
 
 func (c *EchoCtx) PathParam(name string) string {
-return c.ctx.Param(name)
+	return c.ctx.Param(name)
 }
 
 func (c *EchoCtx) PathParams() func() (string, string) {
-i := 0
-names := c.ctx.ParamNames()
-return func() (string, string) {
-if i >= len(names) {
-return "", ""
-}
-i++
-return names[i-1], c.ctx.Param(names[i-1])
-}
+	i := 0
+	names := c.ctx.ParamNames()
+	return func() (string, string) {
+		if i >= len(names) {
+			return "", ""
+		}
+		i++
+		return names[i-1], c.ctx.Param(names[i-1])
+	}
 }
 
 func (c *EchoCtx) Render(code int, r func(http.ResponseWriter) error) error {
-c.Status(code)
-return r(c.Response())
+	c.Status(code)
+	return r(c.Response())
 }
 
 func (c *EchoCtx) Template(code int, name string, data any) error {
-return c.ctx.Render(code, name, data)
+	return c.ctx.Render(code, name, data)
 }
 
 func (c *EchoCtx) String(code int, s string) error {
-return c.ctx.String(code, s)
+	return c.ctx.String(code, s)
 }
 
 func (c *EchoCtx) JSON(code int, i any) error {
-return c.ctx.JSON(code, i)
+	return c.ctx.JSON(code, i)
 }
 
 func (c *EchoCtx) XML(code int, i any) error {
-return c.ctx.XML(code, i)
+	return c.ctx.XML(code, i)
 }
 
 func (c *EchoCtx) Abort() {
-c.abort = true
+	c.abort = true
 }
 
 func (c *EchoCtx) Validate(obj any) error {
-return c.r.(*EchoRouter).Validate(obj)
+	return c.r.(*EchoRouter).Validate(obj)
 }

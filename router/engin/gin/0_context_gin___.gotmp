@@ -4,74 +4,74 @@
 package routers
 
 import (
-"github.com/gin-gonic/gin"
-"net/http"
-"net/url"
+	"github.com/gin-gonic/gin"
+	"net/http"
+	"net/url"
 )
 
 type GinCtx struct {
-baseCtx
-r     Router
-ctx   *gin.Context
-query url.Values
+	baseCtx
+	r	 Router
+	ctx   *gin.Context
+	query url.Values
 }
 
 func (c *GinCtx) ClientIP() string {
-return c.ctx.ClientIP()
+	return c.ctx.ClientIP()
 }
 
 func (c *GinCtx) PathParam(name string) string {
-return c.ctx.Param(name)
+	return c.ctx.Param(name)
 }
 
 func (c *GinCtx) PathParams() func() (string, string) {
-i := 0
-return func() (string, string) {
-if i >= len(c.ctx.Params) {
-return "", ""
-}
-i++
-return c.ctx.Params[i-1].Key, c.ctx.Params[i-1].Value
-}
+	i := 0
+	return func() (string, string) {
+		if i >= len(c.ctx.Params) {
+			return "", ""
+		}
+		i++
+		return c.ctx.Params[i-1].Key, c.ctx.Params[i-1].Value
+	}
 }
 
 type render func(http.ResponseWriter) error
 
 func (r render) Render(writer http.ResponseWriter) error {
-return r(writer)
+	return r(writer)
 }
 
 func (r render) WriteContentType(_ http.ResponseWriter) {}
 
 func (c *GinCtx) Render(code int, r func(http.ResponseWriter) error) error {
-c.ctx.Render(code, render(r))
-return nil
+	c.ctx.Render(code, render(r))
+	return nil
 }
 
 func (c *GinCtx) Template(code int, name string, data any) error {
-c.ctx.HTML(code, name, data)
-return nil
+	c.ctx.HTML(code, name, data)
+	return nil
 }
 
 func (c *GinCtx) String(code int, s string) error {
-c.ctx.String(code, s)
-return nil
+	c.ctx.String(code, s)
+	return nil
 }
 
 func (c *GinCtx) JSON(code int, i any) error {
-c.ctx.JSON(code, i)
-return nil
+	c.ctx.JSON(code, i)
+	return nil
 }
 
 func (c *GinCtx) XML(code int, i any) error {
-c.ctx.XML(code, i)
-return nil
+	c.ctx.XML(code, i)
+	return nil
 }
 
 func (c *GinCtx) Validate(obj any) error {
-return c.r.(*GinRouter).Validate(obj)
+	return c.r.(*GinRouter).Validate(obj)
 }
 
 func (c *GinCtx) Abort() {
-c.ctx.Abort()
+	c.ctx.Abort()
 }

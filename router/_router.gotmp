@@ -4,33 +4,33 @@
 package {{ .PackagePathName }}
 
 import (
-"{{ .PackageBaseName }}/routers"
+	"{{ .PackageBaseName }}/routers"
 )
 
 //function
 func init() {
-{
-{{- range $f := .Functions }}
-    {{- range $s := $f.Paths}}
-        routers.DefaultRouter.Router("{{ $f.GroupPath }}", {{ $f.Name }}, "{{ $s.PathMethod }}")
-    {{- end -}}
-{{- end}}
-}
+	{
+		{{- range $f := .Functions }}
+		{{- range $s := $f.Paths}}
+		routers.DefaultRouter.Router("{{ $f.GroupPath }}", {{ $f.Name }}, "{{ $s.PathMethod }}")
+		{{- end -}}
+		{{- end}}
+	}
 }
 
 //struct function
 func init() {
-{
-{{- range $f := .StructFunctions }}
-    {
-    p := &{{ $f.StructName }}{}
-    {{- range $i,$fn := $f.Functions}}
-        h{{ $i }} := routers.ToBindF(p, p.{{ $fn.Name }}, "{{ $fn.Name }}")
-        {{- range $s := $fn.Paths}}
-            routers.DefaultRouter.Router("{{ $fn.GroupPath }}", h{{ $i }}, "{{$s.PathMethod}}")
-        {{- end -}}
-    {{- end}}
-    }
-{{- end}}
-}
+	{
+		{{- range $f := .StructFunctions }}
+		{
+			p := &{{ $f.StructName }}{}
+			{{- range $i,$fn := $f.Functions}}
+			h{{ $i }} := routers.ToBindF(p, p.{{ $fn.Name }}, "{{ $fn.Name }}")
+			{{- range $s := $fn.Paths}}
+			routers.DefaultRouter.Router("{{ $fn.GroupPath }}", h{{ $i }}, "{{$s.PathMethod}}")
+			{{- end -}}
+			{{- end}}
+		}
+		{{- end}}
+	}
 }

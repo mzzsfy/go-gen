@@ -4,7 +4,7 @@
 package {{ .PackageName }}
 
 import (
-{{- range $p := .Packages}}
-    _ "{{ .PackageBaseName }}/{{$p.PackageModuleName}}"
-{{- end }}
+	{{- range $p := .Packages}}
+	_ "{{ .PackageBaseName }}/{{$p.PackageModuleName}}"
+	{{- end }}
 )

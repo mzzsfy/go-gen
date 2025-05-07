@@ -4,135 +4,135 @@
 package routers
 
 import (
-"context"
-"net/http"
+    "context"
+    "net/http"
 )
 
 type Router interface {
-Router(group, relativePath string, handler func(Ctx) any, methods ...string)
-GroupMiddleware(group string, order int, middleware func(next func(), ctx Ctx))
-ErrorHandler(func(Ctx, error) (bool, error))
-ResultHandler(func(ctx Ctx, res any))
-ValidateHandler(Validator)
-Logger(Logger)
+    Router(group string, handler func(Ctx) any, relativePath string, methods ...string)
+    GroupMiddleware(group string, order int, middleware func(next func(), ctx Ctx))
+    ErrorHandler(func(Ctx, error) (bool, error))
+    ResultHandler(func(ctx Ctx, res any))
+    ValidateHandler(Validator)
+    Logger(Logger)
 }
 
 type LifeCycleManager[T any] interface {
-GetNewSelf() *T
-ReclaimSelf(*T)
+    GetNewSelf() *T
+    ReclaimSelf(*T)
 }
 
 type BaseRouter struct {
-Validator      Validator
-ResultHandler_ func(ctx Ctx, res any)
-ErrorHandler_  func(Ctx, error) (bool, error)
-Logger_        Logger
+    Validator      Validator
+    ResultHandler_ func(ctx Ctx, res any)
+    ErrorHandler_  func(Ctx, error) (bool, error)
+    Logger_        Logger
 }
 
 func (r *BaseRouter) Logger(l Logger) {
-r.Logger_ = l
+    r.Logger_ = l
 }
 
 func (r *BaseRouter) getLogger(ctx Ctx) Logger {
-logger := DefaultLogger
-if r.Logger_ != nil {
-logger = r.Logger_
-}
-if w, ok := logger.(WithCtx); ok {
-logger = w.WithCtx(ctx)
-}
-return logger
+    logger := DefaultLogger
+    if r.Logger_ != nil {
+        logger = r.Logger_
+    }
+    if w, ok := logger.(WithCtx); ok {
+        logger = w.WithCtx(ctx)
+    }
+    return logger
 }
 
 func (r *BaseRouter) ErrorHandler(f func(Ctx, error) (bool, error)) {
-r.ErrorHandler_ = f
+    r.ErrorHandler_ = f
 }
 
 func (r *BaseRouter) handleError(ctx Ctx, err error) (bool, error) {
-if r.ErrorHandler_ != nil {
-return r.ErrorHandler_(ctx, err)
-} else if DefaultErrorHandler != nil {
-return DefaultErrorHandler(ctx, err)
-}
-return false, err
+    if r.ErrorHandler_ != nil {
+        return r.ErrorHandler_(ctx, err)
+    } else if DefaultErrorHandler != nil {
+        return DefaultErrorHandler(ctx, err)
+    }
+    return false, err
 }
 
 func (r *BaseRouter) ResultHandler(f func(ctx Ctx, res any)) {
-r.ResultHandler_ = f
+    r.ResultHandler_ = f
 }
 
 func (r *BaseRouter) handleResult(ctx Ctx, res any) {
-if r.ResultHandler_ != nil {
-r.ResultHandler_(ctx, res)
-} else if DefaultResultHandler != nil {
-DefaultResultHandler(ctx, res)
-} else {
-ctx.String(500, "no result handler")
-}
+    if r.ResultHandler_ != nil {
+        r.ResultHandler_(ctx, res)
+    } else if DefaultResultHandler != nil {
+        DefaultResultHandler(ctx, res)
+    } else {
+        ctx.String(500, "no result handler")
+    }
 }
 
 func (r *BaseRouter) ValidateHandler(validator Validator) {
-r.Validator = validator
+    r.Validator = validator
 }
 
 func (r *BaseRouter) Validate(obj any) error {
-if r.Validator != nil {
-return r.Validator.ValidateStruct(obj)
-} else if DefaultValidator != nil {
-return DefaultValidator.ValidateStruct(obj)
-}
-return nil
+    if r.Validator != nil {
+        return r.Validator.ValidateStruct(obj)
+    } else if DefaultValidator != nil {
+        return DefaultValidator.ValidateStruct(obj)
+    }
+    return nil
 }
 
 type setValue interface {
-Get(key string) any
-Set(key string, value any)
+    Get(key string) any
+    Set(key string, value any)
 }
 
 type setValue1 interface {
-Get(key string) (any, bool)
-Set(key string, value any)
+    Get(key string) (any, bool)
+    Set(key string, value any)
 }
 
 type requestHolder interface {
-Request() *http.Request
-SetRequest(*http.Request)
+    Request() *http.Request
+    SetRequest(*http.Request)
 }
 
 const routerContextKey = "$_routerContextKey___"
 
 func getRouterContext(h any, newContext func() Ctx) Ctx {
-if c, ok := h.(Ctx); ok {
-return c
-}
-if c, ok := h.(setValue); ok {
-ctx := c.Get(routerContextKey)
-if c1, ok := ctx.(Ctx); ok {
-return c1
-}
-nc := newContext()
-c.Set(routerContextKey, nc)
-return nc
-}
-if c, ok := h.(setValue1); ok {
-ctx, _ := c.Get(routerContextKey)
-if c1, ok := ctx.(Ctx); ok {
-return c1
-}
-nc := newContext()
-c.Set(routerContextKey, nc)
-return nc
-}
-if c, ok := h.(requestHolder); ok {
-request := c.Request()
-ctx2 := request.Context()
-c1 := ctx2.Value(routerContextKey)
-if c2, ok := c1.(Ctx); ok {
-return c2
-}
-nc := newContext()
-c.SetRequest(request.WithContext(context.WithValue(ctx2, routerContextKey, nc)))
-return nc
-}
-panic("no context holder")
+    if c, ok := h.(Ctx); ok {
+        return c
+    }
+    if c, ok := h.(setValue); ok {
+        ctx := c.Get(routerContextKey)
+        if c1, ok := ctx.(Ctx); ok {
+            return c1
+        }
+        nc := newContext()
+        c.Set(routerContextKey, nc)
+        return nc
+    }
+    if c, ok := h.(setValue1); ok {
+        ctx, _ := c.Get(routerContextKey)
+        if c1, ok := ctx.(Ctx); ok {
+            return c1
+        }
+        nc := newContext()
+        c.Set(routerContextKey, nc)
+        return nc
+    }
+    if c, ok := h.(requestHolder); ok {
+        request := c.Request()
+        ctx2 := request.Context()
+        c1 := ctx2.Value(routerContextKey)
+        if c2, ok := c1.(Ctx); ok {
+            return c2
+        }
+        nc := newContext()
+        c.SetRequest(request.WithContext(context.WithValue(ctx2, routerContextKey, nc)))
+        return nc
+    }
+    panic("no context holder")
 }

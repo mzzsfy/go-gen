@@ -4,90 +4,90 @@
 package routers
 
 import (
-"github.com/gin-gonic/gin"
-"net/http"
-"sync"
+	"github.com/gin-gonic/gin"
+	"net/http"
+	"sync"
 )
 
 var (
-allMethods = []string{
-http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch,
-http.MethodHead, http.MethodOptions, http.MethodDelete, http.MethodConnect,
-http.MethodTrace,
-}
+	allMethods = []string{
+		http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch,
+		http.MethodHead, http.MethodOptions, http.MethodDelete, http.MethodConnect,
+		http.MethodTrace,
+	}
 )
 
 func NewGinRouter(group *gin.RouterGroup) Router {
-r := &GinRouter{g: group}
-group.Handlers = append(gin.HandlersChain{func(c *gin.Context) {
-c.Next()
-ctx := getRouterContext(c, func() Ctx { return r.makeGinCtx(c) })
-err := ctx.Error()
-if err != nil {
-e, ok := r.handleError(ctx, err)
-if !ok {
-if e != nil {
-r.handleResult(ctx, e)
-}
-return
-}
-}
-r.handleResult(ctx, ctx.GetValue(KeyContextResult))
-}}, group.Handlers...)
-return r
+	r := &GinRouter{g: group}
+	group.Handlers = append(gin.HandlersChain{func(c *gin.Context) {
+		c.Next()
+		ctx := getRouterContext(c, func() Ctx { return r.makeGinCtx(c) })
+		err := ctx.Error()
+		if err != nil {
+			e, ok := r.handleError(ctx, err)
+			if !ok {
+				if e != nil {
+					r.handleResult(ctx, e)
+				}
+				return
+			}
+		}
+		r.handleResult(ctx, ctx.GetValue(KeyContextResult))
+	}}, group.Handlers...)
+	return r
 }
 
 type GinRouter struct {
-BaseRouter
-g         *gin.RouterGroup
-lock      sync.Mutex
-allGroups map[string]*gin.RouterGroup
+	BaseRouter
+	g		 *gin.RouterGroup
+	lock	  sync.Mutex
+	allGroups map[string]*gin.RouterGroup
 }
 
 func (r *GinRouter) makeGinCtx(c *gin.Context) Ctx {
-rw := newResponse(c.Writer)
-c.Writer = rw
-ctx := newBaseCtx(c.Request, rw)
-ctx.logger = r.getLogger()
-return &GinCtx{
-baseCtx: *ctx,
-r:       r,
-ctx:     c,
-}
+	rw := newResponse(c.Writer)
+	c.Writer = rw
+	ctx := newBaseCtx(c.Request, rw)
+	ctx.logger = r.getLogger()
+	return &GinCtx{
+		baseCtx: *ctx,
+		r:	   r,
+		ctx:	 c,
+	}
 }
 
 func (r *GinRouter) group(group string) *gin.RouterGroup {
-if group == "" {
-return r.g
-}
-r.lock.Lock()
-defer r.lock.Unlock()
+	if group == "" {
+		return r.g
+	}
+	r.lock.Lock()
+	defer r.lock.Unlock()
 
-if r.allGroups == nil {
-r.allGroups = map[string]*gin.RouterGroup{}
-}
-if g, ok := r.allGroups[group]; ok {
-return g
-}
-g := r.g.Group(group)
-r.allGroups[group] = g
-return g
+	if r.allGroups == nil {
+		r.allGroups = map[string]*gin.RouterGroup{}
+	}
+	if g, ok := r.allGroups[group]; ok {
+		return g
+	}
+	g := r.g.Group(group)
+	r.allGroups[group] = g
+	return g
 }
 func (r *GinRouter) Router(group string, handler func(Ctx) any, relativePath string, methods ...string) {
-if len(methods) <= 0 {
-methods = allMethods
-}
-h := func(c *gin.Context) {
-ctx := getRouterContext(c, func() Ctx { return r.makeGinCtx(c) })
-ctx.SetValue(KeyContextResult, handler(ctx))
-}
-for _, method := range methods {
-r.group(group).Handle(method, relativePath, h)
-}
+	if len(methods) <= 0 {
+		methods = allMethods
+	}
+	h := func(c *gin.Context) {
+		ctx := getRouterContext(c, func() Ctx { return r.makeGinCtx(c) })
+		ctx.SetValue(KeyContextResult, handler(ctx))
+	}
+	for _, method := range methods {
+		r.group(group).Handle(method, relativePath, h)
+	}
 }
 
 func (r *GinRouter) GroupMiddleware(group string, order int, middleware func(next func(), ctx Ctx)) {
-r.group(group).Use(func(ctx *gin.Context) {
-middleware(ctx.Next, getRouterContext(ctx, func() Ctx { return r.makeGinCtx(ctx) }))
-})
+	r.group(group).Use(func(ctx *gin.Context) {
+		middleware(ctx.Next, getRouterContext(ctx, func() Ctx { return r.makeGinCtx(ctx) }))
+	})
 }
