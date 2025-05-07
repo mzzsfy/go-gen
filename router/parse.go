@@ -2,7 +2,7 @@ package router
 
 import (
     "bytes"
-    _ "embed"
+    "embed"
     "fmt"
     "github.com/mzzsfy/go-gen/register"
     "go/ast"
@@ -20,11 +20,17 @@ import (
 var (
     routerAnnotation      = "@Router"
     routerGroupAnnotation = "@RouterGroup"
-    //go:embed template/ginByPackage.gotemp
-    ginByPackageTemplate []byte
-    //go:embed template/main.gotemp
-    mainTemplate []byte
+    routerNameAnnotation  = "@RouterName"
+    //go:embed core *.gotmp
+    core embed.FS
 )
+
+type GlobalCtx struct {
+    PackageName     string
+    PackageBaseName string
+    OutPath         string
+    Packages        []*Package
+}
 
 type FileInfo struct {
     Path string
@@ -45,13 +51,21 @@ type StructFunction struct {
     StructName string
 }
 type Package struct {
-    PackageBaseName string
-    PackageName     string
-    Functions       []Function
-    StructFunctions []StructFunction
+    BasePath          string
+    WritePath         string
+    PackageBaseName   string
+    PackagePathName   string
+    PackageModuleName string
+    Functions         []Function
+    StructFunctions   []StructFunction
 }
 
-func gen() {
+type GenRouter interface {
+    GenRouterCore(GlobalCtx) error
+    AfterGenRouter(GlobalCtx) error
+}
+
+func Gen(gen GenRouter) {
     workDir := *register.WorkDir
     workDir = path.Clean(workDir)
     if len(workDir) > 2 && len(*register.OutDir) <= 2 {
@@ -78,12 +92,15 @@ func gen() {
     var contexts []*Package
     for pname, p := range pkgs {
         fmt.Printf("分析中: %s\n", pname)
-        pc := &Package{}
+        pc := &Package{
+            BasePath: workDir,
+        }
         pc.PackageBaseName = findModuleName(path.Base(pname))
         if pc.PackageBaseName == "" {
             pc.PackageBaseName = baseModuleName
         }
-        pc.PackageName = pname
+        pc.PackagePathName = pname
+        pc.PackageModuleName = strings.ReplaceAll(pname, "/", ".")
         for fname, f := range p.Files {
             fileGroupPath := ""
             for _, commentGroup := range f.Comments {
@@ -195,39 +212,93 @@ func gen() {
             contexts = append(contexts, pc)
         }
     }
-    t := template.New("main.go")
-    parse, _ := t.Parse(string(mainTemplate))
-    b := &bytes.Buffer{}
-    slices.SortFunc(contexts, func(i, j *Package) int { return strings.Compare(i.PackageName, j.PackageName) })
-    parse.Execute(b, contexts)
+    slices.SortFunc(contexts, func(i, j *Package) int { return strings.Compare(i.PackagePathName, j.PackagePathName) })
+    fmt.Printf("开始生成\n")
     outDir := path.Clean(*register.OutDir)
-    os.Mkdir(path.Clean(outDir+"/routers"), os.ModeDir)
-    os.Mkdir(path.Clean(outDir+"/routers/reg"), os.ModeDir)
-    name := path.Clean(outDir + "/routers/reg/core.go")
-    err = os.WriteFile(name, b.Bytes(), os.ModePerm)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Printf("已写入:%s\n", name)
-    for _, context := range contexts {
-        wPath := path.Clean(outDir + "/routers/" + context.PackageName + ".go")
-        t := template.New(context.PackageName + ".go")
-        _, err := t.Parse(string(ginByPackageTemplate))
+    {
+        f1, _ := core.ReadDir("core")
+        err = os.MkdirAll(path.Clean(outDir+"/routers"), os.ModeDir)
         if err != nil {
             panic(err)
         }
+        for _, f := range f1 {
+            name := f.Name()
+            bs, _ := core.ReadFile("core/" + name)
+            p := path.Clean(outDir + "/routers/" + strings.TrimSuffix(name, "tmp"))
+            if !strings.HasPrefix(name, "0_") || !strings.HasSuffix(name, "___.gotmp") {
+                stat, _ := os.Stat(p)
+                if stat != nil {
+                    continue
+                }
+            }
+            err = os.WriteFile(p, bs, os.ModePerm)
+            if err != nil {
+                panic(err)
+            }
+        }
+    }
+    fmt.Printf("已写入核心文件\n")
+    pkgName := baseModuleName
+    {
+        i := strings.LastIndex(baseModuleName, "/")
+        if i > -1 {
+            pkgName = baseModuleName[i+1:]
+        }
+    }
+    globalCtx := GlobalCtx{
+        PackageName:     pkgName,
+        PackageBaseName: baseModuleName,
+        OutPath:         outDir,
+        Packages:        contexts,
+    }
+    err = gen.GenRouterCore(globalCtx)
+    if err != nil {
+        panic(err)
+    }
+    fmt.Printf("已写入引擎文件\n")
+    {
+        fmt.Printf("开始写入路由逻辑\n")
+        t := template.New("router.go")
+        bs, _ := core.ReadFile("_router.gotmp")
+        t.Parse(string(bs))
+        for _, context := range contexts {
+            wPath := path.Clean(outDir + "/" + context.PackagePathName + "/0_router___.go")
+            context.WritePath = wPath
+            b := &bytes.Buffer{}
+            err = t.Execute(b, context)
+            if err != nil {
+                panic(err)
+            }
+            i := b.Bytes()
+            err = os.WriteFile(wPath, i, os.ModePerm)
+            if err != nil {
+                panic(err)
+            }
+            fmt.Printf("已写入:%s\n", wPath)
+        }
+    }
+
+    {
+        t := template.New("import.go")
+        bs, _ := core.ReadFile("_import.gotmp")
+        t.Parse(string(bs))
+        wPath := path.Clean(outDir + "/0_import___.go")
         b := &bytes.Buffer{}
-        err = t.Execute(b, context)
+        err = t.Execute(b, globalCtx)
         if err != nil {
             panic(err)
         }
         i := b.Bytes()
-        os.Mkdir(path.Dir(wPath), os.ModeDir)
         err = os.WriteFile(wPath, i, os.ModePerm)
         if err != nil {
             panic(err)
         }
         fmt.Printf("已写入:%s\n", wPath)
+    }
+
+    err = gen.AfterGenRouter(globalCtx)
+    if err != nil {
+        panic(err)
     }
 }
 
@@ -298,8 +369,4 @@ func ParseDir(fset *token.FileSet, pathStr string, filter func(fs.FileInfo) bool
     }
 
     return
-}
-
-func init() {
-    register.Register("gin-router", gen)
 }

@@ -1,0 +1,77 @@
+//This is an auto-generated file, please do not edit it manually
+//这是自动生成的文件,请不要手动编辑
+
+package routers
+
+import (
+"errors"
+"sync"
+)
+
+type CtxError struct {
+Err error
+Ctx any
+}
+
+func (c CtxError) Unwrap() error {
+return c.Err
+}
+
+func (c CtxError) Error() string {
+return c.Err.Error()
+}
+
+type ComposeErrorHandler struct {
+lock         sync.Mutex
+errorHandles []func(error error, ctx Ctx) (bool, error)
+}
+
+func (c *ComposeErrorHandler) AddErrorHandle(handle func(error error, ctx Ctx) (bool, error)) {
+c.lock.Lock()
+defer c.lock.Unlock()
+c.errorHandles = append(c.errorHandles, handle)
+}
+
+func (c *ComposeErrorHandler) AddErrorHandleIsType(err error, handle func(error error, ctx Ctx) (bool, error)) {
+c.lock.Lock()
+defer c.lock.Unlock()
+c.errorHandles = append(c.errorHandles, func(e error, ctx Ctx) (bool, error) {
+if errors.Is(e, err) {
+return handle(e, ctx)
+}
+return false, nil
+})
+}
+
+func (c *ComposeErrorHandler) AddErrorHandleAsType(err func() error, handle func(error error, ctx Ctx) (bool, error)) {
+c.lock.Lock()
+defer c.lock.Unlock()
+c.errorHandles = append(c.errorHandles, func(e error, ctx Ctx) (bool, error) {
+e1 := err()
+if errors.As(e, &e1) {
+return handle(e, ctx)
+}
+return false, nil
+})
+}
+
+func (c *ComposeErrorHandler) Handle(ctx Ctx, err error) (bool, error) {
+c.lock.Lock()
+defer c.lock.Unlock()
+for _, handle := range c.errorHandles {
+b, e := handle(err, ctx)
+//处理完成，不需要再处理
+if b {
+return false, e
+}
+}
+//没有处理完成，继续处理
+return true, err
+}
+
+var DefaultComposeErrorHandler = &ComposeErrorHandler{}
+
+var _ = func() bool {
+DefaultErrorHandler = DefaultComposeErrorHandler.Handle
+return false
+}()

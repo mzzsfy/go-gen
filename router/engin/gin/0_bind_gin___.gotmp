@@ -1,0 +1,30 @@
+//This is an auto-generated file, please do not edit it manually
+//这是自动生成的文件,请不要手动编辑
+
+package routers
+
+import (
+"github.com/gin-gonic/gin/binding"
+"net/http"
+"strings"
+)
+
+type GinBinder struct{}
+
+func (g GinBinder) BindMultipleMap(tag string, a any, m map[string][]string) error {
+return binding.MapFormWithTag(a, m, tag)
+}
+
+func (g GinBinder) BindBody(a any, request *http.Request, _ Ctx) error {
+ct := request.Header.Get("Content-Type")
+if ct == "" || strings.HasPrefix(ct, "text/plain") {
+ct = DefaultContextType
+}
+return binding.Default(request.Method, ct).Bind(request, a)
+}
+
+var _ = func() bool {
+DefaultBinder = &GinBinder{}
+binding.Validator = nil
+return true
+}()

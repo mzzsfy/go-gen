@@ -1,0 +1,7 @@
+package routers
+
+func init() {
+//DefaultRouters["default"]=xxx
+//DefaultLogger = xxx
+panic("fixme")
+}

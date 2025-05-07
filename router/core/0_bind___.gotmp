@@ -1,0 +1,122 @@
+//This is an auto-generated file, please do not edit it manually
+//这是自动生成的文件,请不要手动编辑
+
+package routers
+
+import (
+"net/http"
+"reflect"
+"strings"
+)
+
+type Binder interface {
+BindMultipleMap(string, any, map[string][]string) error
+BindBody(any, *http.Request, Ctx) error
+}
+
+func ToBindF[T any](structPointer *T, _ func(Ctx) any, funcName string) func(ctx Ctx) any {
+return toBind[T](structPointer, funcName)
+}
+
+func toBind[T any](structPointer *T, funcName string) func(ctx Ctx) any {
+t := reflect.TypeOf(structPointer)
+m, ok := t.MethodByName(funcName)
+if !ok {
+panic("未找到方法" + funcName + ",请确定方法参数为指针")
+}
+waitBindTag := findTags(nil, t.Elem())
+var lifeCycleCaller, _ = any(structPointer).(LifeCycleManager[T])
+if lifeCycleCaller != nil {
+t1 := lifeCycleCaller.GetNewSelf()
+if t1 == nil {
+panic("自定义生命周期管理器返回为nil")
+}
+lifeCycleCaller.ReclaimSelf(t1)
+}
+f := (m.Func.Interface()).(func(*T, Ctx) any)
+return func(context Ctx) any {
+var obj *T
+if lifeCycleCaller != nil {
+obj = lifeCycleCaller.GetNewSelf()
+defer lifeCycleCaller.ReclaimSelf(obj)
+} else {
+newObj := *structPointer
+obj = &newObj
+}
+bind := false
+for _, s := range waitBindTag {
+f := DefaultBindHandlerByTag[s]
+if f != nil {
+bind = true
+err := f(obj, context)
+if err != nil {
+context.Status(400)
+context.SetError(CtxError{
+Ctx: "Bind",
+Err: err,
+})
+err = context.Error()
+if err != nil {
+return err
+}
+}
+}
+}
+if bind {
+err := context.Validate(obj)
+if err != nil {
+context.Status(400)
+context.SetError(CtxError{
+Ctx: "Validate",
+Err: err,
+})
+err = context.Error()
+if err != nil {
+return err
+}
+}
+}
+return f(obj, context)
+}
+}
+
+func findTags(waitBindTag []string, t reflect.Type) []string {
+waitBindTag = appendTagByType(t, waitBindTag)
+numField := t.NumField()
+for i := 0; i < numField; i++ {
+field := t.Field(i)
+t := field.Type
+if t.Kind() == reflect.Pointer {
+t = t.Elem()
+}
+name := t.Name()
+if field.Name == name {
+waitBindTag = findTags(waitBindTag, t)
+}
+}
+return waitBindTag
+}
+func contains(arr []string, test string) bool {
+for _, s := range arr {
+if s == test {
+return true
+}
+}
+return false
+}
+func appendTagByType(t reflect.Type, waitBindTag []string) []string {
+for i := 0; i < t.NumField(); i++ {
+tag := t.Field(i).Tag
+if tag == "" {
+continue
+}
+split := strings.Split(string(tag), " ")
+for _, s := range split {
+types := strings.SplitN(s, ":", 2)[0]
+if types != "" && !contains(waitBindTag, types) {
+waitBindTag = append(waitBindTag, types)
+}
+}
+}
+return waitBindTag
+}

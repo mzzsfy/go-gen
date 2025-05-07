@@ -1,0 +1,82 @@
+//This is an auto-generated file, please do not edit it manually
+//这是自动生成的文件,请不要手动编辑
+
+package routers
+
+import (
+"encoding/xml"
+"fmt"
+"github.com/labstack/echo/v4"
+"mime/multipart"
+"net/http"
+"strings"
+_ "unsafe"
+)
+
+type EchoBinder struct{}
+
+//go:linkname echoBindData github.com/labstack/echo/v4.(*DefaultBinder).bindData
+func echoBindData(_ *echo.DefaultBinder, destination any, data map[string][]string, tag string, dataFiles map[string][]*multipart.FileHeader) error
+
+var defaultEchoBinder = &echo.DefaultBinder{}
+
+func (g *EchoBinder) BindMultipleMap(tag string, a any, m map[string][]string) error {
+return echoBindData(defaultEchoBinder, a, m, tag, nil)
+}
+
+func (g *EchoBinder) BindBody(a any, req *http.Request, ctx Ctx) (err error) {
+ct := req.Header.Get("Content-Type")
+if ct == "" || strings.HasPrefix(ct, "text/plain") {
+ct = DefaultContextType
+}
+base, _, _ := strings.Cut(ct, ";")
+mediatype := strings.TrimSpace(base)
+
+switch mediatype {
+case "application/json":
+c := ctx.(*EchoCtx).ctx
+if err = c.Echo().JSONSerializer.Deserialize(c, a); err != nil {
+switch err.(type) {
+case *echo.HTTPError:
+return err
+default:
+return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
+}
+}
+case "application/xml", "text/xml":
+if err = xml.NewDecoder(req.Body).Decode(a); err != nil {
+if ute, ok := err.(*xml.UnsupportedTypeError); ok {
+return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Unsupported type error: type=%v, error=%v", ute.Type, ute.Error())).SetInternal(err)
+} else if se, ok := err.(*xml.SyntaxError); ok {
+return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Syntax error: line=%v, error=%v", se.Line, se.Error())).SetInternal(err)
+}
+return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
+}
+case "application/x-www-form-urlencoded":
+c := ctx.(*EchoCtx).ctx
+params, err := c.FormParams()
+if err != nil {
+return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
+}
+if err = echoBindData(defaultEchoBinder, a, params, "form", nil); err != nil {
+return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
+}
+case "multipart/form-data":
+c := ctx.(*EchoCtx).ctx
+params, err := c.MultipartForm()
+if err != nil {
+return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
+}
+if err = echoBindData(defaultEchoBinder, a, params.Value, "form", params.File); err != nil {
+return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
+}
+default:
+return echo.ErrUnsupportedMediaType
+}
+return nil
+}
+
+var _ = func() bool {
+DefaultBinder = &EchoBinder{}
+return true
+}()

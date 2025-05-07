@@ -90,7 +90,7 @@ package ` + parseFile.Name.Name + "\n"))
                                     }
                                 }
                                 file.Write([]byte(leftString + d2.Name.Name + `) ` + *register.FunctionName + `() []string {
-    return []string{` + strings.Join(values, ",") + `}
+	return []string{` + strings.Join(values, ",") + `}
 }
 `))
                             }

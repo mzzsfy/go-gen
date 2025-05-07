@@ -51,7 +51,8 @@ func init() {
 [![](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fmzzsfy%2Fgo-genGin&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://github.com/mzzsfy)  
 按 https://github.com/swaggo/gin-swagger 编写注释,然后自动生成路由
 
-优势: 
+优势:
+
 - 生成代码简单,低侵入性
 - 生成代码暴露部分核心部分,方便二次开发
 - 携带参数绑定功能,支持tag: `query`,`form`,`json`,`header`,`path`,可动态添加,见生成文件中:routers.BindByTag
@@ -59,6 +60,7 @@ func init() {
 - 支持每个文件一个@RouterGroup,也可在方法上单独覆盖,不支持全局@RouterGroup,@RouterGroup逻辑为gin.Group(),方便统一添加中间件
 
 编写 go 文件并添加注释
+
 ```go
 package xxx
 // @RouterGroup /api/v1
@@ -125,6 +127,7 @@ func main() {
 ```
 
 执行
+
 ```
 go generate
 ```

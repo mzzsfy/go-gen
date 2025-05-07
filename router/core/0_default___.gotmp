@@ -1,0 +1,122 @@
+//This is an auto-generated file, please do not edit it manually
+//这是自动生成的文件,请不要手动编辑
+
+package routers
+
+import (
+"github.com/gin-gonic/gin/binding"
+)
+
+type _flag uint8
+
+const (
+ResultDoNothing _flag = iota + 1
+KeyContextResult
+)
+
+func init() {
+if DefaultRouter == nil && len(DefaultRouters) > 0 {
+DefaultRouter = DefaultRouters["DEFAULT"]
+if DefaultRouter != nil {
+return
+}
+DefaultRouter = DefaultRouters["default"]
+if DefaultRouter != nil {
+return
+}
+DefaultRouter = DefaultRouters["Default"]
+if DefaultRouter != nil {
+return
+}
+DefaultRouter = DefaultRouters[""]
+if DefaultRouter != nil {
+return
+}
+for name, router := range DefaultRouters {
+DefaultRouter = router
+println("routers.DefaultRouter is nil, use", name, "as default router")
+return
+}
+}
+}
+
+var (
+DefaultRouter  Router
+DefaultRouters = map[string]Router{}
+
+DefaultLogger          Logger = consoleLogger{}
+DefaultBinder          Binder
+DefaultErrorHandler    func(Ctx, error) (bool, error)
+DefaultContextType               = "application/json"
+DefaultParseBodyMemory int64     = 32 << 20
+DefaultValidator       Validator = &defaultValidator{}
+DefaultResultHandler             = func(ctx Ctx, res any) {
+if res == ResultDoNothing {
+return
+}
+if res == nil {
+ctx.JSON(200, Ok(res))
+} else if r, ok := res.(Res); ok {
+ctx.JSON(200, r)
+} else if err, ok := res.(error); ok {
+ctx.JSON(500, Error(err))
+} else {
+ctx.JSON(200, Ok(res))
+}
+}
+DefaultBindHandlerByTag = map[string]func(any, Ctx) error{
+"query": func(obj any, context Ctx) error {
+return DefaultBinder.BindMultipleMap("query", obj, context.QueryParams())
+},
+"form": func(obj any, context Ctx) error {
+req := context.Request()
+if req.Method == "POST" || req.Method == "PUT" {
+contentType := context.ContentType()
+if contentType == "multipart/form-data" {
+if err := req.ParseMultipartForm(DefaultParseBodyMemory); err != nil {
+return err
+}
+return DefaultBinder.BindMultipleMap("form", obj, req.MultipartForm.Value)
+} else if contentType == "form-urlencoded" {
+if err := req.ParseForm(); err != nil {
+return err
+}
+return DefaultBinder.BindMultipleMap("form", obj, req.PostForm)
+}
+}
+return nil
+},
+"body": func(obj any, ctx Ctx) error {
+req := ctx.Request()
+if req.ContentLength == 0 {
+return nil
+}
+return DefaultBinder.BindBody(obj, req, ctx)
+},
+"json": func(obj any, ctx Ctx) error {
+req := ctx.Request()
+if req.ContentLength == 0 {
+return nil
+}
+return DefaultBinder.BindBody(obj, req, ctx)
+},
+"header": func(obj any, ctx Ctx) error {
+return DefaultBinder.BindMultipleMap("header", obj, ctx.Request().Header)
+},
+"path": func(obj any, ctx Ctx) error {
+params := ctx.PathParams()
+values := make(map[string][]string)
+for {
+k, v := params()
+if k == "" {
+break
+}
+values[k] = []string{v}
+}
+if err := binding.MapFormWithTag(obj, values, "path"); err != nil {
+return err
+}
+return nil
+},
+}
+)

@@ -2,15 +2,18 @@ package main
 
 import (
     _ "embed"
+    _ "github.com/mzzsfy/go-gen/enhance"
+    _ "github.com/mzzsfy/go-gen/router"
+)
+
+import (
     "flag"
     "fmt"
-    _ "github.com/mzzsfy/go-gen/enhance"
-    _ "github.com/mzzsfy/go-gen/gin"
     "github.com/mzzsfy/go-gen/register"
     "os"
 )
 
-var genType = flag.String("genType", "gin-router", "生成类型,默认为gin-router")
+var genType = flag.String("genType", "echo-router", "生成类型")
 
 func main() {
     flag.Parse()
