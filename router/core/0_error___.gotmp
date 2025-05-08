@@ -21,18 +21,18 @@ func (c CtxError) Error() string {
 	return c.Err.Error()
 }
 
-type ComposeErrorHandler struct {
+type ComposeErrorResultHandler struct {
 	lock		 sync.Mutex
 	errorHandles []func(error error, ctx Ctx) (bool, error)
 }
 
-func (c *ComposeErrorHandler) AddErrorHandle(handle func(error error, ctx Ctx) (bool, error)) {
+func (c *ComposeErrorResultHandler) AddErrorHandle(handle func(error error, ctx Ctx) (bool, error)) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.errorHandles = append(c.errorHandles, handle)
 }
 
-func (c *ComposeErrorHandler) AddErrorHandleIs(err error, handle func(error error, ctx Ctx) (bool, error)) {
+func (c *ComposeErrorResultHandler) AddErrorHandleIs(err error, handle func(error error, ctx Ctx) (bool, error)) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.errorHandles = append(c.errorHandles, func(e error, ctx Ctx) (bool, error) {
@@ -43,7 +43,7 @@ func (c *ComposeErrorHandler) AddErrorHandleIs(err error, handle func(error erro
 	})
 }
 
-func (c *ComposeErrorHandler) AddErrorHandleAs(err func() error, handle func(err error, ctx Ctx, original error) (bool, error)) {
+func (c *ComposeErrorResultHandler) AddErrorHandleAs(err func() error, handle func(err error, ctx Ctx, original error) (bool, error)) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.errorHandles = append(c.errorHandles, func(e error, ctx Ctx) (bool, error) {
@@ -55,7 +55,7 @@ func (c *ComposeErrorHandler) AddErrorHandleAs(err func() error, handle func(err
 	})
 }
 
-func (c *ComposeErrorHandler) Handle(ctx Ctx, err error) (bool, error) {
+func (c *ComposeErrorResultHandler) Handle(ctx Ctx, err error) (bool, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	for _, handle := range c.errorHandles {
@@ -68,5 +68,3 @@ func (c *ComposeErrorHandler) Handle(ctx Ctx, err error) (bool, error) {
 	//没有处理完成，继续处理
 	return true, err
 }
-
-var DefaultComposeErrorHandler = &ComposeErrorHandler{}

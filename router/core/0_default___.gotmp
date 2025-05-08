@@ -41,16 +41,23 @@ func init() {
 }
 
 var (
+	DefaultContextType		   = "application/json"
+	DefaultParseBodyMemory int64 = 32 << 20
+)
+
+var (
 	DefaultRouter  Router
 	DefaultRouters = map[string]Router{}
 
-	DefaultLogger		  Logger = consoleLogger{}
-	DefaultBinder		  Binder
-	DefaultErrorHandler			  = DefaultComposeErrorHandler.Handle
-	DefaultContextType			   = "application/json"
-	DefaultParseBodyMemory int64	 = 32 << 20
-	DefaultValidator	   Validator = &defaultValidator{}
-	DefaultResultHandler			 = func(ctx Ctx, res any) {
+	DefaultLogger Logger = consoleLogger{}
+	DefaultBinder Binder
+
+	DefaultComposeErrorResultHandler = &ComposeErrorResultHandler{}
+	DefaultErrorResultHandler		= DefaultComposeErrorResultHandler.Handle
+
+	DefaultValidator Validator = &defaultValidator{}
+
+	DefaultResultHandler = func(ctx Ctx, res any) {
 		if res == ResultDoNothing {
 			return
 		}
@@ -64,6 +71,7 @@ var (
 			ctx.JSON(200, Ok(res))
 		}
 	}
+
 	DefaultBindHandlerByTag = map[string]func(any, Ctx) error{
 		"query": func(obj any, context Ctx) error {
 			return DefaultBinder.BindMultipleMap("query", obj, context.QueryParams())

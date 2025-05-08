@@ -53,8 +53,8 @@ func (r *baseRouter) ErrorResultHandler(f func(Ctx, error) (bool, error)) {
 func (r *baseRouter) handleResultError(ctx Ctx, err error) (bool, error) {
 	if r.errorHandler != nil {
 		return r.errorHandler(ctx, err)
-	} else if DefaultErrorHandler != nil {
-		return DefaultErrorHandler(ctx, err)
+	} else if DefaultErrorResultHandler != nil {
+		return DefaultErrorResultHandler(ctx, err)
 	}
 	return false, err
 }
