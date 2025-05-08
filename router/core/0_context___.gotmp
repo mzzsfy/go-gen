@@ -57,7 +57,6 @@ type Ctx interface {
 	SetHeader(key string, value string)
 
 	Status(code int)
-	Abort()
 	SetError(error)
 	Error() error
 	Validate(obj any) error
@@ -232,7 +231,6 @@ type baseCtx struct {
 	response *responseWriter
 	query	url.Values
 	ctx	  context.Context
-	err	  error
 }
 
 func (b *baseCtx) Response() Response {
@@ -333,14 +331,6 @@ func (b *baseCtx) Logger() Logger {
 
 func (b *baseCtx) SetLogger(l Logger) {
 	b.logger = l
-}
-
-func (b *baseCtx) SetError(err error) {
-	b.err = err
-}
-
-func (b *baseCtx) Error() error {
-	return b.err
 }
 
 func (b *baseCtx) SetContext(ctx context.Context) {

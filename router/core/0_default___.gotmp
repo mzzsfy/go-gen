@@ -46,7 +46,7 @@ var (
 
 	DefaultLogger		  Logger = consoleLogger{}
 	DefaultBinder		  Binder
-	DefaultErrorHandler	func(Ctx, error) (bool, error)
+	DefaultErrorHandler			  = DefaultComposeErrorHandler.Handle
 	DefaultContextType			   = "application/json"
 	DefaultParseBodyMemory int64	 = 32 << 20
 	DefaultValidator	   Validator = &defaultValidator{}

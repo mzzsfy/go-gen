@@ -225,7 +225,7 @@ func Gen(gen GenRouter) {
             name := f.Name()
             bs, _ := core.ReadFile("core/" + name)
             p := path.Clean(outDir + "/routers/" + strings.TrimSuffix(name, "tmp"))
-            if !strings.HasPrefix(name, "0_") || !strings.HasSuffix(name, "___.gotmp") {
+            if strings.HasPrefix(name, "0__") {
                 stat, _ := os.Stat(p)
                 if stat != nil {
                     continue

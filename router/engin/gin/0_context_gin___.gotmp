@@ -14,6 +14,15 @@ type GinCtx struct {
 	r	 Router
 	ctx   *gin.Context
 	query url.Values
+	err   error
+}
+
+func (c *GinCtx) SetError(err error) {
+	c.err = c.r.(*GinRouter).handleError(c, err)
+}
+
+func (c *GinCtx) Error() error {
+	return c.err
 }
 
 func (c *GinCtx) ClientIP() string {

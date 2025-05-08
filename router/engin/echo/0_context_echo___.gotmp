@@ -14,7 +14,15 @@ type EchoCtx struct {
 	r   Router
 	ctx echo.Context
 	baseCtx
-	abort bool
+	err error
+}
+
+func (c *EchoCtx) SetError(err error) {
+	c.err = c.r.(*EchoRouter).handleError(c, err)
+}
+
+func (c *EchoCtx) Error() error {
+	return c.err
 }
 
 func (c *EchoCtx) ClientIP() string {
@@ -56,10 +64,6 @@ func (c *EchoCtx) JSON(code int, i any) error {
 
 func (c *EchoCtx) XML(code int, i any) error {
 	return c.ctx.XML(code, i)
-}
-
-func (c *EchoCtx) Abort() {
-	c.abort = true
 }
 
 func (c *EchoCtx) Validate(obj any) error {

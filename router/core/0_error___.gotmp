@@ -32,7 +32,7 @@ func (c *ComposeErrorHandler) AddErrorHandle(handle func(error error, ctx Ctx) (
 	c.errorHandles = append(c.errorHandles, handle)
 }
 
-func (c *ComposeErrorHandler) AddErrorHandleIsType(err error, handle func(error error, ctx Ctx) (bool, error)) {
+func (c *ComposeErrorHandler) AddErrorHandleIs(err error, handle func(error error, ctx Ctx) (bool, error)) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.errorHandles = append(c.errorHandles, func(e error, ctx Ctx) (bool, error) {
@@ -43,13 +43,13 @@ func (c *ComposeErrorHandler) AddErrorHandleIsType(err error, handle func(error 
 	})
 }
 
-func (c *ComposeErrorHandler) AddErrorHandleAsType(err func() error, handle func(error error, ctx Ctx) (bool, error)) {
+func (c *ComposeErrorHandler) AddErrorHandleAs(err func() error, handle func(err error, ctx Ctx, original error) (bool, error)) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.errorHandles = append(c.errorHandles, func(e error, ctx Ctx) (bool, error) {
 		e1 := err()
 		if errors.As(e, &e1) {
-			return handle(e, ctx)
+			return handle(e, ctx, e1)
 		}
 		return false, nil
 	})
@@ -70,8 +70,3 @@ func (c *ComposeErrorHandler) Handle(ctx Ctx, err error) (bool, error) {
 }
 
 var DefaultComposeErrorHandler = &ComposeErrorHandler{}
-
-var _ = func() bool {
-	DefaultErrorHandler = DefaultComposeErrorHandler.Handle
-	return false
-}()
