@@ -119,6 +119,9 @@ func (r *EchoRouter) Router(group string, handler func(Ctx) any, relativePath st
 		g1.Any(relativePath, h)
 		return
 	}
+	for i := range methods {
+		methods[i] = strings.ToUpper(methods[i])
+	}
 	g1.Match(methods, relativePath, h)
 }
 

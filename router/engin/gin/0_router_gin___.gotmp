@@ -111,6 +111,9 @@ func (r *GinRouter) Router(group string, handler func(Ctx) any, relativePath str
 		ctx := getRouterContext(c, func() Ctx { return r.makeGinCtx(c) })
 		ctx.SetValue(KeyContextResult, handler(ctx))
 	}
+	for i := range methods {
+		methods[i] = strings.ToUpper(methods[i])
+	}
 	for _, method := range methods {
 		r.group(group).Handle(method, relativePath, h)
 	}
