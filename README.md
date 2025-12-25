@@ -46,7 +46,9 @@ func init() {
 }
 ```
 
-## gin-router
+## router
+
+### swagger
 
 [![](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fmzzsfy%2Fgo-genGin&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://github.com/mzzsfy)  
 按 https://github.com/swaggo/gin-swagger 编写注释,然后自动生成路由
@@ -94,40 +96,22 @@ func (t Test) HelloWorld1(g *gin.Context) {
 }
 ```
 
-```go
-import (
-    _ "<<你的包名>>/routers"
-    "<<你的包名>>/routers/reg"
-)
-
+```
 //#生成swagger文档
 //go:generate go install github.com/swaggo/swag/cmd/swag@latest
 //go:generate swag init
-
-//#生成路由
-//go:generate go install github.com/mzzsfy/go-genGinRouter@latest
-//go:generate go-genGinRouter
-
-func main() {
-    g := gin.Default()
-    // 在这里添加根中间件
-    
-    // 简单的统一异常处理,可不注册自己编写
-    reg.RegisterErrorHandle(g)
-    // 在这里添加组中间件
-    reg.AddGroupHandlers("<组>", func(context *gin.Context) {
-    })
-    // 注册生成的路由
-    reg.RegisterRouter(g)
-    
-    //在这里注册自定义路由
-    
-    g.Run(":8080")
-}
 ```
 
-执行
+### echo
 
+```go
+//go:generate go install github.com/mzzsfy/go-gen@latest
+//go:generate go-gen -genType=echo-router
 ```
-go generate
+
+### gin
+
+```go
+//go:generate go install github.com/mzzsfy/go-gen@latest
+//go:generate go-gen -genType=gin-router
 ```
