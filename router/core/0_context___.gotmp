@@ -6,7 +6,7 @@ package routers
 import (
 	"bufio"
 	"context"
-	"github.com/mzzsfy/go-util/helper"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -316,7 +316,7 @@ func (b *baseCtx) Stream(code int, contentType string, r io.Reader) error {
 
 func (b *baseCtx) Redirect(code int, url string) error {
 	if code < 300 || code > 308 {
-		return helper.StringError("redirect code must be 300-308")
+		return errors.New("redirect code must be 300-308")
 	}
 	b.response.Header().Set("Location", url)
 	return b.Raw(code, nil)

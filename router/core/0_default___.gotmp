@@ -3,10 +3,6 @@
 
 package routers
 
-import (
-	"github.com/gin-gonic/gin/binding"
-)
-
 type _flag uint8
 
 const (
@@ -121,10 +117,7 @@ var (
 				}
 				values[k] = []string{v}
 			}
-			if err := binding.MapFormWithTag(obj, values, "path"); err != nil {
-				return err
-			}
-			return nil
+			return DefaultBinder.BindMultipleMap("path", obj, values)
 		},
 	}
 )
