@@ -24,6 +24,11 @@ func toBind[T any](structPointer *T, funcName string) func(ctx Ctx) any {
 	if !ok {
 		panic("未找到方法" + funcName + ",请确定方法参数为指针")
 	}
+	// 值接收者方法同时存在于T与*T方法集,指针接收者只在*T;故T能查到该方法即为值接收者
+	// 值接收者下 m.Func.Interface().(func(*T,...)) 断言会在首次请求 panic
+	if _, ok := t.Elem().MethodByName(funcName); ok {
+		panic(funcName + " 必须是指针接收者(*" + t.Elem().Name() + ") " + funcName + "(),当前为(" + t.Elem().Name() + ") " + funcName + "()")
+	}
 	waitBindTag := findTags(nil, t.Elem())
 	var lifeCycleCaller, _ = any(structPointer).(LifeCycleManager[T])
 	if lifeCycleCaller != nil {
