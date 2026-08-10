@@ -1,5 +1,6 @@
 package routers
 
+// 此文件在重新生成时不会被覆盖, 可放心编辑
 func init() {
 	//DefaultRouters["default"]=xxx
 	//DefaultLogger = xxx
