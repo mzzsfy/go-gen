@@ -7,21 +7,16 @@ import (
 	"encoding/xml"
 	"fmt"
 	"github.com/labstack/echo/v4"
-	"mime/multipart"
 	"net/http"
+	"reflect"
+	"strconv"
 	"strings"
-	_ "unsafe"
 )
 
 type EchoBinder struct{}
 
-//go:linkname echoBindData github.com/labstack/echo/v4.(*DefaultBinder).bindData
-func echoBindData(_ *echo.DefaultBinder, destination any, data map[string][]string, tag string, dataFiles map[string][]*multipart.FileHeader) error
-
-var defaultEchoBinder = &echo.DefaultBinder{}
-
 func (g *EchoBinder) BindMultipleMap(tag string, a any, m map[string][]string) error {
-	return echoBindData(defaultEchoBinder, a, m, tag, nil)
+	return bindMapWithTag(tag, a, m)
 }
 
 func (g *EchoBinder) BindBody(a any, req *http.Request, ctx Ctx) (err error) {
@@ -58,7 +53,7 @@ func (g *EchoBinder) BindBody(a any, req *http.Request, ctx Ctx) (err error) {
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
 		}
-		if err = echoBindData(defaultEchoBinder, a, params, "form", nil); err != nil {
+		if err = bindMapWithTag("form", a, params); err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
 		}
 	case "multipart/form-data":
@@ -67,7 +62,7 @@ func (g *EchoBinder) BindBody(a any, req *http.Request, ctx Ctx) (err error) {
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
 		}
-		if err = echoBindData(defaultEchoBinder, a, params.Value, "form", params.File); err != nil {
+		if err = bindMapWithTag("form", a, params.Value); err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
 		}
 	default:
@@ -80,3 +75,142 @@ var _ = func() bool {
 	DefaultBinder = &EchoBinder{}
 	return true
 }()
+
+// bindMapWithTag 按 tag 将 map[string][]string 绑定到 struct, 替代 echo 私有方法 bindData
+func bindMapWithTag(tag string, dst any, src map[string][]string) error {
+	dv := reflect.ValueOf(dst)
+	if dv.Kind() != reflect.Pointer || dv.IsNil() {
+		return fmt.Errorf("echo: BindMultipleMap: dst must be non-nil pointer")
+	}
+	dv = dv.Elem()
+	if dv.Kind() != reflect.Struct {
+		return fmt.Errorf("echo: BindMultipleMap: dst must point to struct")
+	}
+	dt := dv.Type()
+	for i := 0; i < dt.NumField(); i++ {
+		field := dt.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		// 递归处理匿名字段
+		if field.Anonymous {
+			if err := bindMapValueWithTag(tag, dv.Field(i), src); err != nil {
+				return err
+			}
+			continue
+		}
+		name := field.Tag.Get(tag)
+		if name == "-" {
+			continue
+		}
+		name = strings.SplitN(name, ",", 2)[0]
+		if name == "" {
+			name = field.Name
+		}
+		values, ok := src[name]
+		if !ok || len(values) == 0 {
+			continue
+		}
+		if err := setFieldValue(dv.Field(i), values); err != nil {
+			return fmt.Errorf("bind field %s: %w", field.Name, err)
+		}
+	}
+	return nil
+}
+
+func bindMapValueWithTag(tag string, fv reflect.Value, src map[string][]string) error {
+	if fv.Kind() == reflect.Pointer {
+		if fv.IsNil() {
+			fv.Set(reflect.New(fv.Type().Elem()))
+		}
+		fv = fv.Elem()
+	}
+	if fv.Kind() != reflect.Struct {
+		return nil
+	}
+	dt := fv.Type()
+	for i := 0; i < dt.NumField(); i++ {
+		field := dt.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		if field.Anonymous {
+			if err := bindMapValueWithTag(tag, fv.Field(i), src); err != nil {
+				return err
+			}
+			continue
+		}
+		name := field.Tag.Get(tag)
+		if name == "-" {
+			continue
+		}
+		name = strings.SplitN(name, ",", 2)[0]
+		if name == "" {
+			name = field.Name
+		}
+		values, ok := src[name]
+		if !ok || len(values) == 0 {
+			continue
+		}
+		if err := setFieldValue(fv.Field(i), values); err != nil {
+			return fmt.Errorf("bind field %s: %w", field.Name, err)
+		}
+	}
+	return nil
+}
+
+// setFieldValue 将 []string 设置到 reflect.Value, 支持基本类型及其切片
+func setFieldValue(fv reflect.Value, values []string) error {
+	if fv.Kind() == reflect.Pointer {
+		if fv.IsNil() {
+			fv.Set(reflect.New(fv.Type().Elem()))
+		}
+		fv = fv.Elem()
+	}
+	// 切片
+	if fv.Kind() == reflect.Slice {
+		slice := reflect.MakeSlice(fv.Type(), len(values), len(values))
+		for i, v := range values {
+			if err := setScalar(slice.Index(i), v); err != nil {
+				return err
+			}
+		}
+		fv.Set(slice)
+		return nil
+	}
+	return setScalar(fv, values[0])
+}
+
+func setScalar(fv reflect.Value, s string) error {
+	switch fv.Kind() {
+	case reflect.String:
+		fv.SetString(s)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return fmt.Errorf("parse int: %w", err)
+		}
+		fv.SetInt(n)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		n, err := strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			return fmt.Errorf("parse uint: %w", err)
+		}
+		fv.SetUint(n)
+	case reflect.Float32, reflect.Float64:
+		n, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return fmt.Errorf("parse float: %w", err)
+		}
+		fv.SetFloat(n)
+	case reflect.Bool:
+		b, err := strconv.ParseBool(s)
+		if err != nil {
+			return fmt.Errorf("parse bool: %w", err)
+		}
+		fv.SetBool(b)
+	default:
+		return fmt.Errorf("unsupported type: %s", fv.Kind())
+	}
+	return nil
+}

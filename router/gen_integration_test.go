@@ -167,21 +167,23 @@ func GetUser(ctx routers.Ctx) any {
 		t.Fatalf("服务未在超时内就绪: %s", addr)
 	}
 
-	// 发请求验证路由
-	resp, err := http.Get(fmt.Sprintf("http://%s/api/info", addr))
-	if err != nil {
-		t.Fatalf("请求失败: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		t.Errorf("期望状态码 200, 实际 %d", resp.StatusCode)
-	}
-	body := make([]byte, 1024)
-	n, _ := resp.Body.Read(body)
-	bodyStr := strings.TrimSpace(string(body[:n]))
+	// 循环发送请求验证 sync.Pool 复用后响应仍正确
 	expected := `{"code":0,"data":"hello"}`
-	if bodyStr != expected {
-		t.Errorf("响应体不匹配:\n期望: %s\n实际: %s", expected, bodyStr)
+	for i := 0; i < 10; i++ {
+		resp, err := http.Get(fmt.Sprintf("http://%s/api/info", addr))
+		if err != nil {
+			t.Fatalf("第%d次请求失败: %v", i+1, err)
+		}
+		body := make([]byte, 1024)
+		n, _ := resp.Body.Read(body)
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Errorf("第%d次请求期望状态码 200, 实际 %d", i+1, resp.StatusCode)
+		}
+		bodyStr := strings.TrimSpace(string(body[:n]))
+		if bodyStr != expected {
+			t.Errorf("第%d次响应体不匹配:\n期望: %s\n实际: %s", i+1, expected, bodyStr)
+		}
 	}
 }
 

@@ -25,6 +25,13 @@ func (g GinBinder) BindBody(a any, request *http.Request, _ Ctx) error {
 
 var _ = func() bool {
 	DefaultBinder = &GinBinder{}
-	binding.Validator = nil
+	// 禁用 gin 内置校验, 由 go-gen 的 Validator 接管
+	// 使用 noValidate 而非 nil, 避免用户直接使用 gin binding 时 nil panic
+	binding.Validator = noValidate{}
 	return true
 }()
+
+type noValidate struct{}
+
+func (noValidate) ValidateStruct(any) error { return nil }
+func (noValidate) Engine() any              { return nil }

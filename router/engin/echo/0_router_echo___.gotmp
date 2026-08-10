@@ -112,12 +112,14 @@ func (r *EchoRouter) reclaimCtx(ctx *EchoCtx) {
 	ctx.request = nil
 	ctx.logger = nil
 	ctx.query = nil
+	ctx.ctx = nil
 	ctx.values = nil
 	ctx.result = nil
 	ctx.panicVal = nil
 	ctx.echoCtx = nil
 	ctx.r = nil
 	ctx.err = nil
+	ctx.lock = sync.Mutex{}
 	echoCtxPool.Put(ctx)
 }
 

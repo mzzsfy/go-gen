@@ -64,10 +64,7 @@ func toBind[T any](structPointer *T, funcName string) func(ctx Ctx) any {
 					Ctx: "Bind",
 					Err: err,
 				})
-				err = context.Error()
-				if err != nil {
-					return err
-				}
+				return context.Error()
 			}
 		}
 		if needValidate {
@@ -78,10 +75,7 @@ func toBind[T any](structPointer *T, funcName string) func(ctx Ctx) any {
 					Ctx: "Validate",
 					Err: err,
 				})
-				err = context.Error()
-				if err != nil {
-					return err
-				}
+				return context.Error()
 			}
 		}
 		return f(obj, context)
