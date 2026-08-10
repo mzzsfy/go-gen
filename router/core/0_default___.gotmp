@@ -8,6 +8,7 @@ type _flag uint8
 const (
 	ResultDoNothing _flag = iota + 1
 	KeyContextResult
+	KeyPanicOriginal
 )
 
 func init() {

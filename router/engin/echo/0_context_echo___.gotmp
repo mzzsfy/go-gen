@@ -11,14 +11,14 @@ import (
 var _ Ctx = (*EchoCtx)(nil)
 
 type EchoCtx struct {
-	r   Router
-	ctx echo.Context
 	baseCtx
-	err error
+	r       *EchoRouter
+	echoCtx echo.Context
+	err     error
 }
 
 func (c *EchoCtx) SetError(err error) {
-	c.err = c.r.(*EchoRouter).handleError(c, err)
+	c.err = c.r.handleError(c, err)
 }
 
 func (c *EchoCtx) Error() error {
@@ -26,22 +26,23 @@ func (c *EchoCtx) Error() error {
 }
 
 func (c *EchoCtx) ClientIP() string {
-	return c.ctx.RealIP()
+	return c.echoCtx.RealIP()
 }
 
 func (c *EchoCtx) PathParam(name string) string {
-	return c.ctx.Param(name)
+	return c.echoCtx.Param(name)
 }
 
 func (c *EchoCtx) PathParams() func() (string, string) {
+	names := c.echoCtx.ParamNames()
 	i := 0
-	names := c.ctx.ParamNames()
 	return func() (string, string) {
 		if i >= len(names) {
 			return "", ""
 		}
+		name := names[i]
 		i++
-		return names[i-1], c.ctx.Param(names[i-1])
+		return name, c.echoCtx.Param(name)
 	}
 }
 
@@ -51,21 +52,21 @@ func (c *EchoCtx) Render(code int, r func(http.ResponseWriter) error) error {
 }
 
 func (c *EchoCtx) Template(code int, name string, data any) error {
-	return c.ctx.Render(code, name, data)
+	return c.echoCtx.Render(code, name, data)
 }
 
 func (c *EchoCtx) String(code int, s string) error {
-	return c.ctx.String(code, s)
+	return c.echoCtx.String(code, s)
 }
 
 func (c *EchoCtx) JSON(code int, i any) error {
-	return c.ctx.JSON(code, i)
+	return c.echoCtx.JSON(code, i)
 }
 
 func (c *EchoCtx) XML(code int, i any) error {
-	return c.ctx.XML(code, i)
+	return c.echoCtx.XML(code, i)
 }
 
 func (c *EchoCtx) Validate(obj any) error {
-	return c.r.(*EchoRouter).Validate(obj)
+	return c.r.Validate(obj)
 }

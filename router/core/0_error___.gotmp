@@ -5,6 +5,7 @@ package routers
 
 import (
 	"errors"
+	"reflect"
 	"sync"
 )
 
@@ -47,9 +48,11 @@ func (c *ComposeErrorResultHandler) AddErrorHandleAs(err func() error, handle fu
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.errorHandles = append(c.errorHandles, func(e error, ctx Ctx) (bool, error) {
-		e1 := err()
-		if errors.As(e, &e1) {
-			return handle(e, ctx, e1)
+		targetType := reflect.TypeOf(err())
+		for current := e; current != nil; current = errors.Unwrap(current) {
+			if reflect.TypeOf(current) == targetType {
+				return handle(e, ctx, current)
+			}
 		}
 		return false, nil
 	})

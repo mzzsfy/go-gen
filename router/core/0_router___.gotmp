@@ -31,14 +31,10 @@ func (r *baseRouter) Logger(l Logger) {
 }
 
 func (r *baseRouter) getLogger(ctx Ctx) Logger {
-	logger := DefaultLogger
 	if r.logger != nil {
-		logger = r.logger
+		return r.logger
 	}
-	if w, ok := logger.(WithCtx); ok {
-		logger = w.WithCtx(ctx)
-	}
-	return logger
+	return DefaultLogger
 }
 
 func (r *baseRouter) ErrorResultHandler(f func(Ctx, error) (bool, error)) {

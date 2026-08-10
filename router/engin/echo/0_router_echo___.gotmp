@@ -10,6 +10,14 @@ import (
 	"sync"
 )
 
+var echoCtxPool = sync.Pool{
+	New: func() any {
+		ctx := &EchoCtx{}
+		ctx.response = &responseWriter{}
+		return ctx
+	},
+}
+
 func NewEchoRouter(group *echo.Group) Router {
 	r := &EchoRouter{}
 	g1 := group.Group("", func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -17,7 +25,7 @@ func NewEchoRouter(group *echo.Group) Router {
 			ctx := r.getOrMakeCtx(c)
 			defer func() {
 				if err := recover(); err != nil {
-					ctx.SetValue("$_panicOriginal", err)
+					ctx.SetValue(KeyPanicOriginal, err)
 					if ne, ok := err.(CtxError); ok {
 						ctx.SetError(ne)
 					} else if ne, ok := err.(error); ok {
@@ -39,9 +47,11 @@ func NewEchoRouter(group *echo.Group) Router {
 								r.handleResult(ctx, e)
 							}
 						}
+						r.reclaimCtx(ctx)
 						return
 					}
 				}
+				r.reclaimCtx(ctx)
 			}()
 			e := next(c)
 			if e != nil {
@@ -75,29 +85,40 @@ type EchoRouter struct {
 	allGroups map[string]*echo.Group
 }
 
-func (r *EchoRouter) makeEchoCtx(c echo.Context) Ctx {
-	rw := newResponse(c.Response())
-	c.SetResponse(echo.NewResponse(rw, c.Echo()))
-	ctx := newBaseCtx(c.Request(), c.Response())
-	ctx1 := &EchoCtx{
-		baseCtx: *ctx,
-		ctx:	 c,
-		r:	   r,
-	}
-	ctx1.logger = r.getLogger(ctx1)
-	return ctx1
+func (r *EchoRouter) initEchoCtx(ctx *EchoCtx, c echo.Context) {
+	ctx.response.reset(c.Response())
+	c.SetResponse(echo.NewResponse(ctx.response, c.Echo()))
+	ctx.request = c.Request()
+	ctx.logger = r.getLogger(ctx)
+	ctx.ctx = c.Request().Context()
+	ctx.r = r
+	ctx.echoCtx = c
 }
 
-// getOrMakeCtx 直接使用 echo.Context 的 Get/Set 缓存 Ctx, 避免类型断言
-func (r *EchoRouter) getOrMakeCtx(c echo.Context) Ctx {
+func (r *EchoRouter) getOrMakeCtx(c echo.Context) *EchoCtx {
 	if v := c.Get(routerContextKey); v != nil {
-		if ctx, ok := v.(Ctx); ok {
+		if ctx, ok := v.(*EchoCtx); ok {
 			return ctx
 		}
 	}
-	ctx := r.makeEchoCtx(c)
+	ctx := echoCtxPool.Get().(*EchoCtx)
+	r.initEchoCtx(ctx, c)
 	c.Set(routerContextKey, ctx)
 	return ctx
+}
+
+func (r *EchoRouter) reclaimCtx(ctx *EchoCtx) {
+	ctx.response.reset(nil)
+	ctx.request = nil
+	ctx.logger = nil
+	ctx.query = nil
+	ctx.values = nil
+	ctx.result = nil
+	ctx.panicVal = nil
+	ctx.echoCtx = nil
+	ctx.r = nil
+	ctx.err = nil
+	echoCtxPool.Put(ctx)
 }
 
 func (r *EchoRouter) getGroup(group string) *echo.Group {
@@ -124,7 +145,7 @@ func (r *EchoRouter) Router(group string, handler func(Ctx) any, relativePath st
 		g1 = r.getGroup(group)
 	}
 	h := func(c echo.Context) error {
-		ctx := r.getOrMakeCtx(c).(*EchoCtx)
+		ctx := r.getOrMakeCtx(c)
 		ctx.SetValue(KeyContextResult, handler(ctx))
 		return nil
 	}

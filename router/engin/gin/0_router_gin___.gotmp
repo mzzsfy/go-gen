@@ -19,13 +19,21 @@ var (
 	}
 )
 
+var ginCtxPool = sync.Pool{
+	New: func() any {
+		ctx := &GinCtx{}
+		ctx.response = &responseWriter{}
+		return ctx
+	},
+}
+
 func NewGinRouter(group *gin.RouterGroup) Router {
 	r := &GinRouter{g: group}
 	group.Handlers = append(gin.HandlersChain{func(c *gin.Context) {
 		ctx := r.getOrMakeCtx(c)
 		defer func() {
 			if err := recover(); err != nil {
-				ctx.SetValue("$_panicOriginal", err)
+				ctx.SetValue(KeyPanicOriginal, err)
 				if ne, ok := err.(CtxError); ok {
 					ctx.SetError(ne)
 				} else if ne, ok := err.(error); ok {
@@ -47,9 +55,11 @@ func NewGinRouter(group *gin.RouterGroup) Router {
 							r.handleResult(ctx, e)
 						}
 					}
+					r.reclaimCtx(ctx)
 					return
 				}
 			}
+			r.reclaimCtx(ctx)
 		}()
 		c.Next()
 		err := ctx.Error()
@@ -74,27 +84,38 @@ type GinRouter struct {
 	allGroups map[string]*gin.RouterGroup
 }
 
-func (r *GinRouter) makeGinCtx(c *gin.Context) Ctx {
-	rw := newResponse(c.Writer)
-	c.Writer = rw
-	ctx := newBaseCtx(c.Request, rw)
-	ctx1 := &GinCtx{
-		baseCtx: *ctx,
-		r:	   r,
-		ctx:	 c,
-	}
-	ctx1.logger = r.getLogger(ctx1)
-	return ctx1
+func (r *GinRouter) initGinCtx(ctx *GinCtx, c *gin.Context) {
+	ctx.response.reset(c.Writer)
+	c.Writer = ctx.response
+	ctx.request = c.Request
+	ctx.logger = r.getLogger(ctx)
+	ctx.ctx = c.Request.Context()
+	ctx.r = r
+	ctx.ginCtx = c
 }
 
-// getOrMakeCtx 直接使用 gin.Context 的 Get/Set 缓存 Ctx, 避免类型断言
-func (r *GinRouter) getOrMakeCtx(c *gin.Context) Ctx {
+func (r *GinRouter) getOrMakeCtx(c *gin.Context) *GinCtx {
 	if v, ok := c.Get(routerContextKey); ok {
-		return v.(Ctx)
+		return v.(*GinCtx)
 	}
-	ctx := r.makeGinCtx(c)
+	ctx := ginCtxPool.Get().(*GinCtx)
+	r.initGinCtx(ctx, c)
 	c.Set(routerContextKey, ctx)
 	return ctx
+}
+
+func (r *GinRouter) reclaimCtx(ctx *GinCtx) {
+	ctx.response.reset(nil)
+	ctx.request = nil
+	ctx.logger = nil
+	ctx.query = nil
+	ctx.values = nil
+	ctx.result = nil
+	ctx.panicVal = nil
+	ctx.ginCtx = nil
+	ctx.r = nil
+	ctx.err = nil
+	ginCtxPool.Put(ctx)
 }
 
 func (r *GinRouter) group(group string) *gin.RouterGroup {

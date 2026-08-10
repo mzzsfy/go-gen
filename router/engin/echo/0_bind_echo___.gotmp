@@ -34,7 +34,7 @@ func (g *EchoBinder) BindBody(a any, req *http.Request, ctx Ctx) (err error) {
 
 	switch mediatype {
 	case "application/json":
-		c := ctx.(*EchoCtx).ctx
+		c := ctx.(*EchoCtx).echoCtx
 		if err = c.Echo().JSONSerializer.Deserialize(c, a); err != nil {
 			switch err.(type) {
 			case *echo.HTTPError:
@@ -53,7 +53,7 @@ func (g *EchoBinder) BindBody(a any, req *http.Request, ctx Ctx) (err error) {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
 		}
 	case "application/x-www-form-urlencoded":
-		c := ctx.(*EchoCtx).ctx
+		c := ctx.(*EchoCtx).echoCtx
 		params, err := c.FormParams()
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
@@ -62,7 +62,7 @@ func (g *EchoBinder) BindBody(a any, req *http.Request, ctx Ctx) (err error) {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
 		}
 	case "multipart/form-data":
-		c := ctx.(*EchoCtx).ctx
+		c := ctx.(*EchoCtx).echoCtx
 		params, err := c.MultipartForm()
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)

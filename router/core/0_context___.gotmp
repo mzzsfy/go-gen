@@ -89,14 +89,6 @@ type Response interface {
 	StatusCode() int
 }
 
-func newResponse(w http.ResponseWriter) *responseWriter {
-	return &responseWriter{
-		w:	  w,
-		size:   -1,
-		status: 200,
-	}
-}
-
 type responseWriter struct {
 	w			http.ResponseWriter
 	size		 int
@@ -126,12 +118,15 @@ func (w *responseWriter) reset(writer http.ResponseWriter) {
 	w.w = writer
 	w.size = -1
 	w.status = 200
+	w.beforeHeader = nil
+	w.beforeBody = nil
+	w.onBodyWrite = nil
 }
 
 func (w *responseWriter) WriteHeader(code int) {
 	if code > 0 && w.status != code {
 		if w.Written() {
-			DefaultLogger.LogV("WARN", "http状态已写入，忽略不生效的状态设置", w.status, code)
+			DefaultLogger.LogV("WARN", "http状态已写入，忽略不生效的状态设置(旧:%v, 新:%v)", w.status, code)
 			return
 		}
 		w.status = code
@@ -215,15 +210,6 @@ func (w *responseWriter) Flush() {
 	}
 }
 
-func newBaseCtx(r *http.Request, rw http.ResponseWriter) *baseCtx {
-	return &baseCtx{
-		request:  r,
-		logger:   DefaultLogger,
-		response: newResponse(rw),
-		ctx:	  r.Context(),
-	}
-}
-
 type baseCtx struct {
 	lock	 sync.Mutex
 	request  *http.Request
@@ -231,6 +217,8 @@ type baseCtx struct {
 	response *responseWriter
 	query	url.Values
 	ctx	  context.Context
+	result   any
+	panicVal any
 	values   map[any]any
 }
 
@@ -343,6 +331,14 @@ func (b *baseCtx) Context() context.Context {
 }
 
 func (b *baseCtx) GetValue(key any) any {
+	if k, ok := key.(_flag); ok {
+		switch k {
+		case KeyContextResult:
+			return b.result
+		case KeyPanicOriginal:
+			return b.panicVal
+		}
+	}
 	if b.values == nil {
 		return nil
 	}
@@ -350,6 +346,16 @@ func (b *baseCtx) GetValue(key any) any {
 }
 
 func (b *baseCtx) SetValue(key, value any) {
+	if k, ok := key.(_flag); ok {
+		switch k {
+		case KeyContextResult:
+			b.result = value
+			return
+		case KeyPanicOriginal:
+			b.panicVal = value
+			return
+		}
+	}
 	if b.values == nil {
 		b.values = make(map[any]any, 4)
 	}
