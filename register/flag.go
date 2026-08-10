@@ -11,4 +11,5 @@ var (
     FileName      = flag.String("fileName", "0_register.gen.go", "生成文件名")
     FindFileRegex = flag.String("findFileRegex", ".+.go", "匹配的文件")
     UsingPointers = flag.Bool("usingPointers", false, "生成是否使用指针")
+    RouterGroup   = flag.String("routerGroup", "", "全局路由组前缀")
 )

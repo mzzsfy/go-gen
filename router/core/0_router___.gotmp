@@ -107,6 +107,11 @@ type setValue1 interface {
 	Set(key string, value any)
 }
 
+type setValue2 interface {
+	Get(key any) (any, bool)
+	Set(key any, value any)
+}
+
 type requestHolder interface {
 	Request() *http.Request
 	SetRequest(*http.Request)
@@ -128,6 +133,15 @@ func getRouterContext(h any, newContext func() Ctx) Ctx {
 		return nc
 	}
 	if c, ok := h.(setValue1); ok {
+		ctx, _ := c.Get(routerContextKey)
+		if c1, ok := ctx.(Ctx); ok {
+			return c1
+		}
+		nc := newContext()
+		c.Set(routerContextKey, nc)
+		return nc
+	}
+	if c, ok := h.(setValue2); ok {
 		ctx, _ := c.Get(routerContextKey)
 		if c1, ok := ctx.(Ctx); ok {
 			return c1

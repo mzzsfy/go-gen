@@ -101,17 +101,45 @@ func Gen(gen GenRouter) {
         }
         pc.PackagePathName = pname
         pc.PackageModuleName = strings.ReplaceAll(pname, "/", ".")
+        // 包级路由组: 扫描所有文件的包文档注释(package xxx 上方)
+        packageGroupPath := ""
+        for _, f := range p.Files {
+            if f.Doc == nil {
+                continue
+            }
+            for _, comment := range f.Doc.List {
+                text := strings.TrimSpace(comment.Text[2:])
+                if strings.HasPrefix(text, routerGroupAnnotation) {
+                    packageGroupPath = strings.TrimSpace(text[len(routerGroupAnnotation)+1:])
+                    break
+                }
+            }
+            if packageGroupPath != "" {
+                break
+            }
+        }
         for fname, f := range p.Files {
             fileGroupPath := ""
+            // 包文档注释单独处理为包级 group, 文件级扫描跳过它
             for _, commentGroup := range f.Comments {
+                if commentGroup == f.Doc {
+                    continue
+                }
                 for _, comment := range commentGroup.List {
                     text := strings.TrimSpace(comment.Text[2:])
                     if strings.HasPrefix(text, routerGroupAnnotation) {
-                        if fileGroupPath == "" || len(commentGroup.List) <= 3 {
+                        if fileGroupPath == "" {
                             fileGroupPath = strings.TrimSpace(text[len(routerGroupAnnotation)+1:])
                         }
                     }
                 }
+            }
+            // 优先级: 文件级 > 包级 > 全局
+            if fileGroupPath == "" {
+                fileGroupPath = packageGroupPath
+            }
+            if fileGroupPath == "" {
+                fileGroupPath = *register.RouterGroup
             }
             for _, dx := range f.Decls {
                 groupPath := fileGroupPath
@@ -123,7 +151,9 @@ func Gen(gen GenRouter) {
                     var httpPath []HttpPath
                     for _, comment := range d.Doc.List {
                         text := strings.TrimSpace(comment.Text[2:])
-                        if strings.HasPrefix(text, routerAnnotation) {
+                        if strings.HasPrefix(text, routerGroupAnnotation) {
+                            groupPath = strings.TrimSpace(text[len(routerGroupAnnotation)+1:])
+                        } else if strings.HasPrefix(text, routerAnnotation) {
                             m := ""
                             p := strings.TrimSpace(text[len(routerAnnotation)+1:])
                             if strings.Contains(p, "[") {
@@ -140,8 +170,6 @@ func Gen(gen GenRouter) {
                                 e.PathMethod = p + `", "` + m
                             }
                             httpPath = append(httpPath, e)
-                        } else if strings.HasPrefix(text, routerGroupAnnotation) {
-                            groupPath = strings.TrimSpace(text[len(routerGroupAnnotation)+1:])
                         }
                     }
                     if len(httpPath) <= 0 {
@@ -264,6 +292,7 @@ func Gen(gen GenRouter) {
         for _, context := range contexts {
             wPath := path.Clean(outDir + "/" + context.PackagePathName + "/0_router___.go")
             context.WritePath = wPath
+            os.MkdirAll(filepath.Dir(wPath), os.ModeDir)
             b := &bytes.Buffer{}
             err = t.Execute(b, context)
             if err != nil {
