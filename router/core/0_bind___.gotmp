@@ -29,7 +29,15 @@ func toBind[T any](structPointer *T, funcName string) func(ctx Ctx) any {
 	if _, ok := t.Elem().MethodByName(funcName); ok {
 		panic(funcName + " 必须是指针接收者(*" + t.Elem().Name() + ") " + funcName + "(),当前为(" + t.Elem().Name() + ") " + funcName + "()")
 	}
-	waitBindTag := findTags(nil, t.Elem())
+	tags := findTags(t.Elem())
+	// 预计算 bind 函数链, 避免每请求重复 map 查找
+	var binders []func(any, Ctx) error
+	for _, s := range tags {
+		if f := DefaultBindHandlerByTag[s]; f != nil {
+			binders = append(binders, f)
+		}
+	}
+	needValidate := len(binders) > 0
 	var lifeCycleCaller, _ = any(structPointer).(LifeCycleManager[T])
 	if lifeCycleCaller != nil {
 		t1 := lifeCycleCaller.GetNewSelf()
@@ -48,26 +56,21 @@ func toBind[T any](structPointer *T, funcName string) func(ctx Ctx) any {
 			newObj := *structPointer
 			obj = &newObj
 		}
-		bind := false
-		for _, s := range waitBindTag {
-			f := DefaultBindHandlerByTag[s]
-			if f != nil {
-				bind = true
-				err := f(obj, context)
+		for _, binder := range binders {
+			err := binder(obj, context)
+			if err != nil {
+				context.Status(400)
+				context.SetError(CtxError{
+					Ctx: "Bind",
+					Err: err,
+				})
+				err = context.Error()
 				if err != nil {
-					context.Status(400)
-					context.SetError(CtxError{
-						Ctx: "Bind",
-						Err: err,
-					})
-					err = context.Error()
-					if err != nil {
-						return err
-					}
+					return err
 				}
 			}
 		}
-		if bind {
+		if needValidate {
 			err := context.Validate(obj)
 			if err != nil {
 				context.Status(400)
@@ -85,43 +88,38 @@ func toBind[T any](structPointer *T, funcName string) func(ctx Ctx) any {
 	}
 }
 
-func findTags(waitBindTag []string, t reflect.Type) []string {
-	waitBindTag = appendTagByType(t, waitBindTag)
-	numField := t.NumField()
-	for i := 0; i < numField; i++ {
-		field := t.Field(i)
-		t := field.Type
-		if t.Kind() == reflect.Pointer {
-			t = t.Elem()
-		}
-		name := t.Name()
-		if field.Name == name {
-			waitBindTag = findTags(waitBindTag, t)
-		}
+// findTags 递归收集结构体所有字段的 tag 名称, 使用 map 去重
+func findTags(t reflect.Type) []string {
+	seen := make(map[string]struct{})
+	collectTags(t, seen)
+	result := make([]string, 0, len(seen))
+	for tag := range seen {
+		result = append(result, tag)
 	}
-	return waitBindTag
+	return result
 }
-func contains(arr []string, test string) bool {
-	for _, s := range arr {
-		if s == test {
-			return true
-		}
-	}
-	return false
-}
-func appendTagByType(t reflect.Type, waitBindTag []string) []string {
+
+func collectTags(t reflect.Type, seen map[string]struct{}) {
 	for i := 0; i < t.NumField(); i++ {
 		tag := t.Field(i).Tag
-		if tag == "" {
-			continue
-		}
-		split := strings.Split(string(tag), " ")
-		for _, s := range split {
-			types := strings.SplitN(s, ":", 2)[0]
-			if types != "" && !contains(waitBindTag, types) {
-				waitBindTag = append(waitBindTag, types)
+		if tag != "" {
+			for _, s := range strings.Split(string(tag), " ") {
+				name := strings.SplitN(s, ":", 2)[0]
+				if name != "" {
+					seen[name] = struct{}{}
+				}
 			}
 		}
 	}
-	return waitBindTag
+	numField := t.NumField()
+	for i := 0; i < numField; i++ {
+		field := t.Field(i)
+		ft := field.Type
+		if ft.Kind() == reflect.Pointer {
+			ft = ft.Elem()
+		}
+		if field.Name == ft.Name() {
+			collectTags(ft, seen)
+		}
+	}
 }

@@ -104,7 +104,7 @@ func TestGen_ImportFileContent(t *testing.T) {
 	assertContains(t, content, `_ "testmod/user"`)
 }
 
-// TestGen_CoreTemplateCopiedCorrectly 验证核心模板被正确复制(包含所有接口定义)
+// TestGen_CoreTemplateCopiedCorrectly 验证核心模板被正确复制(已移除接口, 保留 routerContextKey)
 func TestGen_CoreTemplateCopiedCorrectly(t *testing.T) {
 	outDir := t.TempDir()
 	setupFlags(t, outDir)
@@ -118,25 +118,21 @@ func TestGen_CoreTemplateCopiedCorrectly(t *testing.T) {
 	}
 	content := string(bs)
 
-	// 验证所有接口定义存在于生成的文件中
-	interfaceChecks := map[string]bool{
-		"Get(key string) any":         false, // setValue (echo)
-		"Get(key string) (any, bool)": false, // setValue1 (旧 gin)
-		"Get(key any) (any, bool)":    false, // setValue2 (gin v1.12.0)
-		"Request() *http.Request":     false, // requestHolder
-		"h.(setValue)":                false,
-		"h.(setValue1)":               false,
-		"h.(setValue2)":               false,
-		"h.(requestHolder)":           false,
+	// routerContextKey 保留供引擎 getOrMakeCtx 使用
+	if !strings.Contains(content, "routerContextKey") {
+		t.Error("核心路由文件应包含 routerContextKey")
 	}
-	for pattern := range interfaceChecks {
+	// getRouterContext 和相关接口应已移除
+	removed := []string{
+		"getRouterContext",
+		"type setValue interface",
+		"type setValue1 interface",
+		"type setValue2 interface",
+		"type requestHolder interface",
+	}
+	for _, pattern := range removed {
 		if strings.Contains(content, pattern) {
-			interfaceChecks[pattern] = true
-		}
-	}
-	for pattern, found := range interfaceChecks {
-		if !found {
-			t.Errorf("生成文件缺少: %s", pattern)
+			t.Errorf("核心路由文件应已移除: %s", pattern)
 		}
 	}
 }

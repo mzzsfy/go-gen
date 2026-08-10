@@ -14,7 +14,7 @@ func NewEchoRouter(group *echo.Group) Router {
 	r := &EchoRouter{}
 	g1 := group.Group("", func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			ctx := getRouterContext(c, func() Ctx { return r.makeEchoCtx(c) })
+			ctx := r.getOrMakeCtx(c)
 			defer func() {
 				if err := recover(); err != nil {
 					ctx.SetValue("$_panicOriginal", err)
@@ -88,6 +88,18 @@ func (r *EchoRouter) makeEchoCtx(c echo.Context) Ctx {
 	return ctx1
 }
 
+// getOrMakeCtx 直接使用 echo.Context 的 Get/Set 缓存 Ctx, 避免类型断言
+func (r *EchoRouter) getOrMakeCtx(c echo.Context) Ctx {
+	if v := c.Get(routerContextKey); v != nil {
+		if ctx, ok := v.(Ctx); ok {
+			return ctx
+		}
+	}
+	ctx := r.makeEchoCtx(c)
+	c.Set(routerContextKey, ctx)
+	return ctx
+}
+
 func (r *EchoRouter) getGroup(group string) *echo.Group {
 	if group == "" {
 		return r.g
@@ -112,7 +124,7 @@ func (r *EchoRouter) Router(group string, handler func(Ctx) any, relativePath st
 		g1 = r.getGroup(group)
 	}
 	h := func(c echo.Context) error {
-		ctx := getRouterContext(c, func() Ctx { return r.makeEchoCtx(c) }).(*EchoCtx)
+		ctx := r.getOrMakeCtx(c).(*EchoCtx)
 		ctx.SetValue(KeyContextResult, handler(ctx))
 		return nil
 	}
@@ -129,7 +141,7 @@ func (r *EchoRouter) Router(group string, handler func(Ctx) any, relativePath st
 func (r *EchoRouter) GroupMiddleware(group string, order int, middleware func(next func(), ctx Ctx)) {
 	r.getGroup(group).Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			ctx := getRouterContext(c, func() Ctx { return r.makeEchoCtx(c) })
+			ctx := r.getOrMakeCtx(c)
 			middleware(func() {
 				err := next(c)
 				if err != nil {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -21,7 +22,7 @@ var (
 func NewGinRouter(group *gin.RouterGroup) Router {
 	r := &GinRouter{g: group}
 	group.Handlers = append(gin.HandlersChain{func(c *gin.Context) {
-		ctx := getRouterContext(c, func() Ctx { return r.makeGinCtx(c) })
+		ctx := r.getOrMakeCtx(c)
 		defer func() {
 			if err := recover(); err != nil {
 				ctx.SetValue("$_panicOriginal", err)
@@ -86,6 +87,16 @@ func (r *GinRouter) makeGinCtx(c *gin.Context) Ctx {
 	return ctx1
 }
 
+// getOrMakeCtx 直接使用 gin.Context 的 Get/Set 缓存 Ctx, 避免类型断言
+func (r *GinRouter) getOrMakeCtx(c *gin.Context) Ctx {
+	if v, ok := c.Get(routerContextKey); ok {
+		return v.(Ctx)
+	}
+	ctx := r.makeGinCtx(c)
+	c.Set(routerContextKey, ctx)
+	return ctx
+}
+
 func (r *GinRouter) group(group string) *gin.RouterGroup {
 	if group == "" {
 		return r.g
@@ -108,7 +119,7 @@ func (r *GinRouter) Router(group string, handler func(Ctx) any, relativePath str
 		methods = allMethods
 	}
 	h := func(c *gin.Context) {
-		ctx := getRouterContext(c, func() Ctx { return r.makeGinCtx(c) })
+		ctx := r.getOrMakeCtx(c)
 		ctx.SetValue(KeyContextResult, handler(ctx))
 	}
 	for i := range methods {
@@ -121,6 +132,6 @@ func (r *GinRouter) Router(group string, handler func(Ctx) any, relativePath str
 
 func (r *GinRouter) GroupMiddleware(group string, order int, middleware func(next func(), ctx Ctx)) {
 	r.group(group).Use(func(ctx *gin.Context) {
-		middleware(ctx.Next, getRouterContext(ctx, func() Ctx { return r.makeGinCtx(ctx) }))
+		middleware(ctx.Next, r.getOrMakeCtx(ctx))
 	})
 }

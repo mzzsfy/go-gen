@@ -231,6 +231,7 @@ type baseCtx struct {
 	response *responseWriter
 	query	url.Values
 	ctx	  context.Context
+	values   map[any]any
 }
 
 func (b *baseCtx) Response() Response {
@@ -342,9 +343,15 @@ func (b *baseCtx) Context() context.Context {
 }
 
 func (b *baseCtx) GetValue(key any) any {
-	return b.ctx.Value(key)
+	if b.values == nil {
+		return nil
+	}
+	return b.values[key]
 }
 
 func (b *baseCtx) SetValue(key, value any) {
-	b.ctx = context.WithValue(b.ctx, key, value)
+	if b.values == nil {
+		b.values = make(map[any]any, 4)
+	}
+	b.values[key] = value
 }
