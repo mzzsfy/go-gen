@@ -24,11 +24,10 @@ type engineSpec struct {
 	mainContent string // cmd/server/main.go
 }
 
-func TestIntegration_BuildAndRun(t *testing.T) {
-	specs := []engineSpec{
-		{
-			engine: "gin",
-			initContent: `package routers
+var integrationSpecs = []engineSpec{
+	{
+		engine: "gin",
+		initContent: `package routers
 
 import "github.com/gin-gonic/gin"
 
@@ -38,7 +37,7 @@ func init() {
 	DefaultRouters["default"] = NewGinRouter(DefaultEngine.Group(""))
 }
 `,
-			mainContent: `package main
+		mainContent: `package main
 
 import (
 	"net/http"
@@ -55,10 +54,10 @@ func main() {
 	http.ListenAndServe(addr, routers.DefaultEngine)
 }
 `,
-		},
-		{
-			engine: "echo",
-			initContent: `package routers
+	},
+	{
+		engine: "echo",
+		initContent: `package routers
 
 import "github.com/labstack/echo/v4"
 
@@ -68,7 +67,7 @@ func init() {
 	DefaultRouters["default"] = NewEchoRouter(DefaultEngine.Group(""))
 }
 `,
-			mainContent: `package main
+		mainContent: `package main
 
 import (
 	"os"
@@ -84,10 +83,11 @@ func main() {
 	routers.DefaultEngine.Start(addr)
 }
 `,
-		},
-	}
+	},
+}
 
-	for _, spec := range specs {
+func TestIntegration_BuildAndRun(t *testing.T) {
+	for _, spec := range integrationSpecs {
 		t.Run(spec.engine, func(t *testing.T) {
 			testBuildAndRunEngine(t, spec)
 		})
@@ -220,4 +220,96 @@ func waitReady(t *testing.T, addr string, timeout time.Duration) bool {
 		time.Sleep(50 * time.Millisecond)
 	}
 	return false
+}
+
+// 回归测试: SetValue 存入 values map 的值必须能通过 Context().Value() 读取
+// 根因: baseCtx.Context() 原先返回 b.ctx, 而 SetValue 存入 b.values, 两者不互通
+func TestIntegration_SetValueVisibleViaContext(t *testing.T) {
+	handlerSrc := `package user
+
+import "testmod/routers"
+
+type ctxKey string
+
+const userKey ctxKey = "user"
+
+// SetValueTest
+// @RouterGroup /api
+// @Router /setvalue[GET]
+func SetValueTest(ctx routers.Ctx) any {
+	ctx.SetValue(userKey, "alice")
+	val := ctx.Context().Value(userKey)
+	if val == nil {
+		return routers.Err("value not found via Context().Value()")
+	}
+	s, ok := val.(string)
+	if !ok || s != "alice" {
+		return routers.Err("unexpected value")
+	}
+	return routers.Ok(s)
+}
+`
+	expected := `{"code":0,"data":"alice"}`
+
+	for _, spec := range integrationSpecs {
+		t.Run(spec.engine, func(t *testing.T) {
+			modDir := t.TempDir()
+			writeFile(t, modDir, "go.mod", "module testmod\n\ngo 1.22\n")
+			writeFile(t, modDir, "user/handler.go", handlerSrc)
+
+			*register.WorkDir = modDir
+			*register.OutDir = modDir
+			*register.ModuleName = "testmod"
+			*register.RouterGroup = ""
+			Gen(genGin{Name: spec.engine})
+
+			writeFile(t, modDir, "routers/0__init___.go", spec.initContent)
+			writeFile(t, modDir, "cmd/server/main.go", spec.mainContent)
+
+			cmd := exec.Command("go", "mod", "tidy")
+			cmd.Dir = modDir
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Skipf("go mod tidy 失败 (可能无网络): %v\n%s", err, out)
+			}
+
+			binaryName := "testserver"
+			if runtime.GOOS == "windows" {
+				binaryName = "testserver.exe"
+			}
+			binaryPath := filepath.Join(modDir, binaryName)
+			cmd = exec.Command("go", "build", "-o", binaryPath, "./cmd/server")
+			cmd.Dir = modDir
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("go build 失败: %v\n%s", err, out)
+			}
+
+			port := freePort(t)
+			addr := fmt.Sprintf("127.0.0.1:%d", port)
+			cmd = exec.Command(binaryPath)
+			cmd.Env = append(os.Environ(), "LISTEN_ADDR="+addr)
+			if err := cmd.Start(); err != nil {
+				t.Fatalf("启动服务失败: %v", err)
+			}
+			defer func() {
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
+			}()
+
+			if !waitReady(t, addr, 5*time.Second) {
+				t.Fatalf("服务未就绪: %s", addr)
+			}
+
+			resp, err := http.Get(fmt.Sprintf("http://%s/api/setvalue", addr))
+			if err != nil {
+				t.Fatalf("请求失败: %v", err)
+			}
+			body := make([]byte, 1024)
+			n, _ := resp.Body.Read(body)
+			resp.Body.Close()
+			bodyStr := strings.TrimSpace(string(body[:n]))
+			if bodyStr != expected {
+				t.Fatalf("响应不匹配:\n期望: %s\n实际: %s", expected, bodyStr)
+			}
+		})
+	}
 }

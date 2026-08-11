@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Ctx interface {
@@ -335,8 +336,29 @@ func (b *baseCtx) SetContext(ctx context.Context) {
 	b.ctx = ctx
 }
 
+// context.Context 实现: 生命周期委托 b.ctx, Value 合并 values 快速路径与标准 context 链
+func (b *baseCtx) Deadline() (time.Time, bool) { return b.ctx.Deadline() }
+func (b *baseCtx) Done() <-chan struct{}        { return b.ctx.Done() }
+func (b *baseCtx) Err() error                   { return b.ctx.Err() }
+func (b *baseCtx) Value(key any) any {
+	if k, ok := key.(_flag); ok {
+		switch k {
+		case KeyContextResult:
+			return b.result
+		case KeyPanicOriginal:
+			return b.panicVal
+		}
+	}
+	if b.values != nil {
+		if v, ok := b.values[key]; ok {
+			return v
+		}
+	}
+	return b.ctx.Value(key)
+}
+
 func (b *baseCtx) Context() context.Context {
-	return b.ctx
+	return b
 }
 
 func (b *baseCtx) GetValue(key any) any {
