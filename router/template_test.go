@@ -49,13 +49,13 @@ func TestEngineTemplate_HasGetOrMakeCtx(t *testing.T) {
 func TestEngineTemplates_Exist(t *testing.T) {
 	engines := []string{"gin", "echo"}
 	for _, eng := range engines {
-		entries, err := files.ReadDir("engin/" + eng)
+		entries, err := files.ReadDir("engine/" + eng)
 		if err != nil {
-			t.Errorf("读取引擎目录 engin/%s 失败: %v", eng, err)
+			t.Errorf("读取引擎目录 engine/%s 失败: %v", eng, err)
 			continue
 		}
 		if len(entries) == 0 {
-			t.Errorf("引擎目录 engin/%s 为空", eng)
+			t.Errorf("引擎目录 engine/%s 为空", eng)
 		}
 		hasContext := false
 		hasRouter := false
@@ -107,7 +107,7 @@ func readCoreTemplate(t *testing.T, name string) string {
 
 func readEngineTemplate(t *testing.T, engine, name string) string {
 	t.Helper()
-	bs, err := files.ReadFile("engin/" + engine + "/" + name)
+	bs, err := files.ReadFile("engine/" + engine + "/" + name)
 	if err != nil {
 		t.Fatalf("读取引擎模板 %s/%s 失败: %v", engine, name, err)
 	}

@@ -10,9 +10,9 @@ import (
 // TestParseDir_SubdirParseErrorPropagation 验证子目录解析错误被传播
 func TestParseDir_SubdirParseErrorPropagation(t *testing.T) {
 	srcDir := createTempSrc(t, map[string]string{
-		"go.mod":       "module testmod\n\ngo 1.22\n",
-		"pkg/bad.go":   "package pkg\nthis is bad",
-		"pkg/good.go":  "package pkg\ntype Good struct{}\n",
+		"go.mod":      "module testmod\n\ngo 1.22\n",
+		"pkg/bad.go":  "package pkg\nthis is bad",
+		"pkg/good.go": "package pkg\ntype Good struct{}\n",
 	})
 
 	pkgs, first := ParseDir(token.NewFileSet(), srcDir, nil, 0)

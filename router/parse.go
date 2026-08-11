@@ -43,7 +43,8 @@ type Package struct {
 	BasePath          string
 	WritePath         string
 	PackageBaseName   string
-	PackagePathName   string
+	PackagePathName   string // 相对workDir的完整路径, 如 "api/quant"
+	PackageName       string // package声明名, 为路径的base name, 如 "quant"
 	PackageModuleName string
 	Functions         []Function
 	StructFunctions   []StructFunction
@@ -57,10 +58,10 @@ type GenRouter interface {
 func findModuleName(dir string) string {
 	file, e := os.ReadFile(dir + "/go.mod")
 	if e == nil {
-		split := strings.Split(string(file), "\n")
-		for _, s := range split {
-			if s != "" && strings.HasPrefix(strings.TrimSpace(s), "module") {
-				return strings.TrimSpace(s[7:])
+		for _, s := range strings.Split(string(file), "\n") {
+			fields := strings.Fields(s)
+			if len(fields) >= 2 && fields[0] == "module" {
+				return fields[1]
 			}
 		}
 	}
@@ -79,7 +80,7 @@ func ParseDir(fset *token.FileSet, pathStr string, filter func(fs.FileInfo) bool
 		}
 		if d.IsDir() {
 			p, f := ParseDir(fset, filepath.Join(pathStr, d.Name()), filter, mode)
-			if f != nil {
+			if f != nil && first == nil {
 				first = f
 			}
 			for s, a := range p {

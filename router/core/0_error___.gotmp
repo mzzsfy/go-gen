@@ -60,8 +60,10 @@ func (c *ComposeErrorResultHandler) AddErrorHandleAs(err func() error, handle fu
 
 func (c *ComposeErrorResultHandler) Handle(ctx Ctx, err error) (bool, error) {
 	c.lock.Lock()
-	defer c.lock.Unlock()
-	for _, handle := range c.errorHandles {
+	handles := make([]func(error error, ctx Ctx) (bool, error), len(c.errorHandles))
+	copy(handles, c.errorHandles)
+	c.lock.Unlock()
+	for _, handle := range handles {
 		b, e := handle(err, ctx)
 		//处理完成，不需要再处理
 		if b {

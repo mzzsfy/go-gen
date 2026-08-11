@@ -22,7 +22,7 @@ func (g *EchoBinder) BindMultipleMap(tag string, a any, m map[string][]string) e
 func (g *EchoBinder) BindBody(a any, req *http.Request, ctx Ctx) (err error) {
 	ct := req.Header.Get("Content-Type")
 	if ct == "" || strings.HasPrefix(ct, "text/plain") {
-		ct = DefaultContextType
+		ct = DefaultContentType
 	}
 	base, _, _ := strings.Cut(ct, ";")
 	mediatype := strings.TrimSpace(base)

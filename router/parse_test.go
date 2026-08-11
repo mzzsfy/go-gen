@@ -18,8 +18,9 @@ func TestParseDir_BasicPackageParsing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseDir error: %v", err)
 	}
-	if len(pkgs) != 2 {
-		t.Fatalf("expected 2 packages, got %d", len(pkgs))
+	// user, admin, api/quant, api/backtest
+	if len(pkgs) != 4 {
+		t.Fatalf("expected 4 packages, got %d", len(pkgs))
 	}
 	// ParseDir 返回的 key 是相对路径, 验证 user 包存在
 	found := false
@@ -46,9 +47,9 @@ func TestParseDir_NestedDirectories(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseDir error: %v", err)
 	}
-	// testdata/src 下有 user 和 admin 两个子目录
-	if len(pkgs) != 2 {
-		t.Fatalf("expected 2 packages (user, admin), got %d", len(pkgs))
+	// user, admin, api/quant, api/backtest
+	if len(pkgs) != 4 {
+		t.Fatalf("expected 4 packages, got %d", len(pkgs))
 	}
 }
 

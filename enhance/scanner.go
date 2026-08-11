@@ -1,6 +1,7 @@
 package enhance
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -35,7 +36,7 @@ func scanAnnotatedStructs(workDir, fileRegex, annotation string) (packageName st
 		filePath := workDir + "/" + entry.Name()
 		f, parseErr := parser.ParseFile(fileSet, filePath, nil, parser.ParseComments)
 		if parseErr != nil {
-			println("跳过文件: " + entry.Name() + ", 错误: " + parseErr.Error())
+			fmt.Printf("跳过文件: %s, 错误: %v\n", entry.Name(), parseErr)
 			continue
 		}
 		if packageName == "" {
@@ -86,7 +87,7 @@ func extractAnnotatedStructs(f *ast.File, annotation string) []annotatedStruct {
 func parseAnnotationValues(group *ast.CommentGroup, annotation string) []string {
 	var values []string
 	for _, comment := range group.List {
-		text := strings.TrimSpace(comment.Text[2:])
+		text := strings.TrimSpace(strings.TrimPrefix(comment.Text, "//"))
 		if !strings.HasPrefix(text, annotation) {
 			continue
 		}

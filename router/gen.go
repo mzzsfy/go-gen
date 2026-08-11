@@ -17,7 +17,8 @@ import (
 // Gen 解析源码并生成路由代码
 func Gen(gen GenRouter) {
 	workDir := path.Clean(*WorkDir)
-	if len(workDir) > 2 && len(*OutDir) <= 2 {
+	// OutDir 未显式设置时默认使用 WorkDir
+	if workDir != "." && path.Clean(*OutDir) == "." {
 		*OutDir = strings.ReplaceAll(workDir, "\\", "/")
 	}
 	outDir := path.Clean(*OutDir)
@@ -94,6 +95,7 @@ func buildPackage(pname string, p *ast.Package, workDir, baseModuleName string) 
 	pc := &Package{
 		BasePath:          workDir,
 		PackagePathName:   pname,
+		PackageName:       path.Base(pname),
 		PackageModuleName: strings.ReplaceAll(pname, "/", "."),
 	}
 	pc.PackageBaseName = findModuleName(path.Base(pname))
@@ -116,7 +118,7 @@ func findPackageGroupPath(p *ast.Package) string {
 			continue
 		}
 		for _, comment := range f.Doc.List {
-			text := strings.TrimSpace(comment.Text[2:])
+			text := commentText(comment.Text)
 			if strings.HasPrefix(text, routerGroupAnnotation) {
 				return strings.TrimSpace(text[len(routerGroupAnnotation)+1:])
 			}
@@ -133,7 +135,7 @@ func findFileGroupPath(f *ast.File, packageGroupPath string) string {
 			continue
 		}
 		for _, comment := range commentGroup.List {
-			text := strings.TrimSpace(comment.Text[2:])
+			text := commentText(comment.Text)
 			if strings.HasPrefix(text, routerGroupAnnotation) && fileGroupPath == "" {
 				fileGroupPath = strings.TrimSpace(text[len(routerGroupAnnotation)+1:])
 			}
@@ -185,7 +187,7 @@ func extractFuncDecls(f *ast.File, fileGroupPath string, pc *Package) {
 func parseRouterAnnotations(doc *ast.CommentGroup, groupPath *string) []HttpPath {
 	var httpPaths []HttpPath
 	for _, comment := range doc.List {
-		text := strings.TrimSpace(comment.Text[2:])
+		text := commentText(comment.Text)
 		switch {
 		case strings.HasPrefix(text, routerGroupAnnotation):
 			*groupPath = strings.TrimSpace(text[len(routerGroupAnnotation)+1:])
@@ -232,7 +234,10 @@ func addStructFunction(pc *Package, d *ast.FuncDecl, fn Function) {
 	if expr, ok := structType.(*ast.StarExpr); ok {
 		structType = expr.X
 	}
-	ident := structType.(*ast.Ident)
+	ident, ok := structType.(*ast.Ident)
+	if !ok {
+		return
+	}
 	for i := range pc.StructFunctions {
 		if pc.StructFunctions[i].StructName == ident.Name {
 			pc.StructFunctions[i].Functions = append(pc.StructFunctions[i].Functions, fn)
@@ -282,7 +287,7 @@ func mustWriteCoreFiles(outDir string) {
 				continue
 			}
 		}
-		if err := os.WriteFile(p, bs, os.ModePerm); err != nil {
+		if err := os.WriteFile(p, bs, 0644); err != nil {
 			panic(err)
 		}
 	}
@@ -301,7 +306,7 @@ func mustWriteRouterFiles(outDir string, contexts []*Package) {
 		if err := t.Execute(b, ctx); err != nil {
 			panic(err)
 		}
-		if err := os.WriteFile(wPath, b.Bytes(), os.ModePerm); err != nil {
+		if err := os.WriteFile(wPath, b.Bytes(), 0644); err != nil {
 			panic(err)
 		}
 		fmt.Printf("已写入:%s\n", wPath)
@@ -316,7 +321,7 @@ func mustWriteImportFile(outDir string, globalCtx GlobalCtx) {
 	if err := t.Execute(b, globalCtx); err != nil {
 		panic(err)
 	}
-	if err := os.WriteFile(wPath, b.Bytes(), os.ModePerm); err != nil {
+	if err := os.WriteFile(wPath, b.Bytes(), 0644); err != nil {
 		panic(err)
 	}
 	fmt.Printf("已写入:%s\n", wPath)
@@ -328,6 +333,11 @@ func mustReadCoreTemplate(name string) string {
 		panic(fmt.Errorf("读取模板 %s 失败: %w", name, err))
 	}
 	return string(bs)
+}
+
+// commentText 去除行注释前缀并 trim
+func commentText(text string) string {
+	return strings.TrimSpace(strings.TrimPrefix(text, "//"))
 }
 
 func must(err error) {

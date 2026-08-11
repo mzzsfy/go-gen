@@ -1,10 +1,10 @@
 package enhance
 
 import (
-	"github.com/mzzsfy/go-gen/register"
-	"os"
 	"path"
 	"strings"
+
+	"github.com/mzzsfy/go-gen/register"
 )
 
 func init() {
@@ -20,32 +20,21 @@ func genRegister() {
 	if pkgName == "" {
 		return
 	}
-	file, err := os.OpenFile(workDir+"/"+*FileName, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		file.Write([]byte("}\n"))
-		file.Close()
-	}()
-	println("生成文件: " + workDir + "/" + *FileName)
-
-	leftString := "["
-	if *UsingPointers {
-		leftString += "*"
-	}
-	var sb strings.Builder
-	sb.WriteString("//This is an auto-generated file, please do not edit it manually\n")
-	sb.WriteString("//这是自动生成的文件,请不要手动编辑\n\n")
-	sb.WriteString("package " + pkgName + "\n\nfunc init() {\n")
-	for _, s := range structs {
-		sb.WriteString("	")
-		sb.WriteString(*FunctionName)
-		sb.WriteString(leftString)
-		sb.WriteString(s.Name)
-		sb.WriteString("]([]string{")
-		sb.WriteString(strings.Join(s.Values, ","))
-		sb.WriteString("})\n")
-	}
-	file.Write([]byte(sb.String()))
+	writeGeneratedFile(workDir, *FileName, pkgName, func(sb *strings.Builder) {
+		sb.WriteString("\nfunc init() {\n")
+		leftString := "["
+		if *UsingPointers {
+			leftString += "*"
+		}
+		for _, s := range structs {
+			sb.WriteString("\t")
+			sb.WriteString(*FunctionName)
+			sb.WriteString(leftString)
+			sb.WriteString(s.Name)
+			sb.WriteString("]([]string{")
+			sb.WriteString(strings.Join(s.Values, ","))
+			sb.WriteString("})\n")
+		}
+		sb.WriteString("}\n")
+	})
 }

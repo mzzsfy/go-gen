@@ -46,7 +46,10 @@ func toBind[T any](structPointer *T, funcName string) func(ctx Ctx) any {
 		}
 		lifeCycleCaller.ReclaimSelf(t1)
 	}
-	f := (m.Func.Interface()).(func(*T, Ctx) any)
+	f, ok := (m.Func.Interface()).(func(*T, Ctx) any)
+	if !ok {
+		panic(funcName + " 方法签名不匹配, 期望 func(*" + t.Elem().Name() + ", Ctx) any")
+	}
 	return func(context Ctx) any {
 		var obj *T
 		if lifeCycleCaller != nil {
@@ -95,8 +98,8 @@ func findTags(t reflect.Type) []string {
 
 func collectTags(t reflect.Type, seen map[string]struct{}) {
 	for i := 0; i < t.NumField(); i++ {
-		tag := t.Field(i).Tag
-		if tag != "" {
+		field := t.Field(i)
+		if tag := field.Tag; tag != "" {
 			for _, s := range strings.Split(string(tag), " ") {
 				name := strings.SplitN(s, ":", 2)[0]
 				if name != "" {
@@ -104,15 +107,11 @@ func collectTags(t reflect.Type, seen map[string]struct{}) {
 				}
 			}
 		}
-	}
-	numField := t.NumField()
-	for i := 0; i < numField; i++ {
-		field := t.Field(i)
-		ft := field.Type
-		if ft.Kind() == reflect.Pointer {
-			ft = ft.Elem()
-		}
-		if field.Name == ft.Name() {
+		if field.Anonymous {
+			ft := field.Type
+			if ft.Kind() == reflect.Pointer {
+				ft = ft.Elem()
+			}
 			collectTags(ft, seen)
 		}
 	}

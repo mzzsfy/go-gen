@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	//go:embed engin
+	//go:embed engine
 	files embed.FS
 )
 
@@ -18,7 +18,7 @@ type engineGen struct {
 }
 
 func (g engineGen) GenRouterCore(ctx GlobalCtx) error {
-	entries, err := files.ReadDir("engin/" + g.Name)
+	entries, err := files.ReadDir("engine/" + g.Name)
 	if err != nil {
 		return err
 	}
@@ -27,12 +27,12 @@ func (g engineGen) GenRouterCore(ctx GlobalCtx) error {
 		return err
 	}
 	for _, entry := range entries {
-		bs, err := files.ReadFile("engin/" + g.Name + "/" + entry.Name())
+		bs, err := files.ReadFile("engine/" + g.Name + "/" + entry.Name())
 		if err != nil {
 			return err
 		}
 		p := path.Clean(outDir + "/routers/" + strings.TrimSuffix(entry.Name(), "tmp"))
-		if err := os.WriteFile(p, bs, os.ModePerm); err != nil {
+		if err := os.WriteFile(p, bs, 0644); err != nil {
 			return err
 		}
 	}
@@ -44,7 +44,7 @@ func (g engineGen) AfterGenRouter(GlobalCtx) error {
 }
 
 func init() {
-	entries, err := files.ReadDir("engin")
+	entries, err := files.ReadDir("engine")
 	if err != nil {
 		panic(err)
 	}

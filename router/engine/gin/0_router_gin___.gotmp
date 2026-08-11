@@ -81,7 +81,9 @@ func (r *GinRouter) initGinCtx(ctx *GinCtx, c *gin.Context) {
 
 func (r *GinRouter) getOrMakeCtx(c *gin.Context) *GinCtx {
 	if v, ok := c.Get(routerContextKey); ok {
-		return v.(*GinCtx)
+		if ctx, ok := v.(*GinCtx); ok {
+			return ctx
+		}
 	}
 	ctx := ginCtxPool.Get().(*GinCtx)
 	r.initGinCtx(ctx, c)

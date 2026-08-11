@@ -1,8 +1,8 @@
 package router
 
 import (
-	"go/token"
 	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"testing"
@@ -100,8 +100,8 @@ func TestParseDir_MultipleFilesSamePackage(t *testing.T) {
 // TestParseDir_ParseErrorHandling 验证语法错误的文件被跳过, 不阻止其他文件解析
 func TestParseDir_ParseErrorHandling(t *testing.T) {
 	srcDir := createTempSrc(t, map[string]string{
-		"go.mod": "module testmod\n\ngo 1.22\n",
-		"bad.go": "package pkg\nthis is bad go",
+		"go.mod":  "module testmod\n\ngo 1.22\n",
+		"bad.go":  "package pkg\nthis is bad go",
 		"good.go": "package pkg\ntype Good struct{}\n",
 	})
 

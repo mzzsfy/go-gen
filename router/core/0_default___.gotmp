@@ -38,7 +38,7 @@ func init() {
 }
 
 var (
-	DefaultContextType		   = "application/json"
+	DefaultContentType		   = "application/json"
 	DefaultParseBodyMemory int64 = 32 << 20
 )
 
@@ -58,9 +58,7 @@ var (
 		if res == ResultDoNothing {
 			return
 		}
-		if res == nil {
-			ctx.JSON(200, Ok(res))
-		} else if r, ok := res.(Res); ok {
+		if r, ok := res.(Res); ok {
 			ctx.JSON(200, r)
 		} else if err, ok := res.(error); ok {
 			ctx.JSON(500, Error(err))
@@ -69,56 +67,53 @@ var (
 		}
 	}
 
-	DefaultBindHandlerByTag = map[string]func(any, Ctx) error{
-		"query": func(obj any, context Ctx) error {
-			return DefaultBinder.BindMultipleMap("query", obj, context.QueryParams())
-		},
-		"form": func(obj any, context Ctx) error {
-			req := context.Request()
-			if req.Method == "POST" || req.Method == "PUT" {
-				contentType := context.ContentType()
-				if contentType == "multipart/form-data" {
-					if err := req.ParseMultipartForm(DefaultParseBodyMemory); err != nil {
-						return err
-					}
-					return DefaultBinder.BindMultipleMap("form", obj, req.MultipartForm.Value)
-				} else if contentType == "form-urlencoded" {
-					if err := req.ParseForm(); err != nil {
-						return err
-					}
-					return DefaultBinder.BindMultipleMap("form", obj, req.PostForm)
-				}
-			}
-			return nil
-		},
-		"body": func(obj any, ctx Ctx) error {
+	DefaultBindHandlerByTag = func() map[string]func(any, Ctx) error {
+		bodyBind := func(obj any, ctx Ctx) error {
 			req := ctx.Request()
 			if req.ContentLength == 0 {
 				return nil
 			}
 			return DefaultBinder.BindBody(obj, req, ctx)
-		},
-		"json": func(obj any, ctx Ctx) error {
-			req := ctx.Request()
-			if req.ContentLength == 0 {
-				return nil
-			}
-			return DefaultBinder.BindBody(obj, req, ctx)
-		},
-		"header": func(obj any, ctx Ctx) error {
-			return DefaultBinder.BindMultipleMap("header", obj, ctx.Request().Header)
-		},
-		"path": func(obj any, ctx Ctx) error {
-			params := ctx.PathParams()
-			values := make(map[string][]string)
-			for {
-				k, v := params()
-				if k == "" {
-					break
+		}
+		return map[string]func(any, Ctx) error{
+			"query": func(obj any, context Ctx) error {
+				return DefaultBinder.BindMultipleMap("query", obj, context.QueryParams())
+			},
+			"form": func(obj any, context Ctx) error {
+				req := context.Request()
+				if req.Method == "POST" || req.Method == "PUT" {
+					contentType := context.ContentType()
+					if contentType == "multipart/form-data" {
+						if err := req.ParseMultipartForm(DefaultParseBodyMemory); err != nil {
+							return err
+						}
+						return DefaultBinder.BindMultipleMap("form", obj, req.MultipartForm.Value)
+					} else if contentType == "form-urlencoded" {
+						if err := req.ParseForm(); err != nil {
+							return err
+						}
+						return DefaultBinder.BindMultipleMap("form", obj, req.PostForm)
+					}
 				}
-				values[k] = []string{v}
-			}
-			return DefaultBinder.BindMultipleMap("path", obj, values)
-		},
-	}
+				return nil
+			},
+			"body": bodyBind,
+			"json": bodyBind,
+			"header": func(obj any, ctx Ctx) error {
+				return DefaultBinder.BindMultipleMap("header", obj, ctx.Request().Header)
+			},
+			"path": func(obj any, ctx Ctx) error {
+				params := ctx.PathParams()
+				values := make(map[string][]string)
+				for {
+					k, v := params()
+					if k == "" {
+						break
+					}
+					values[k] = []string{v}
+				}
+				return DefaultBinder.BindMultipleMap("path", obj, values)
+			},
+		}
+	}()
 )

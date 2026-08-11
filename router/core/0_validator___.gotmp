@@ -33,17 +33,20 @@ func (v *defaultValidator) ValidateStruct(obj interface{}) error {
 		return nil
 	}
 	v.lazyinit()
-	value := reflect.ValueOf(obj)
+	return v.validateValue(reflect.ValueOf(obj))
+}
+
+func (v *defaultValidator) validateValue(value reflect.Value) error {
 	switch value.Kind() {
 	case reflect.Ptr:
-		return v.ValidateStruct(value.Elem().Interface())
+		return v.validateValue(value.Elem())
 	case reflect.Struct:
-		return v.validate.Struct(obj)
+		return v.validate.Struct(value.Interface())
 	case reflect.Slice, reflect.Array:
 		count := value.Len()
 		validateRet := make([]error, 0)
 		for i := 0; i < count; i++ {
-			if err := v.ValidateStruct(value.Index(i).Interface()); err != nil {
+			if err := v.validateValue(value.Index(i)); err != nil {
 				validateRet = append(validateRet, err)
 			}
 		}

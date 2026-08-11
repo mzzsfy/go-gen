@@ -18,7 +18,7 @@ func (g GinBinder) BindMultipleMap(tag string, a any, m map[string][]string) err
 func (g GinBinder) BindBody(a any, request *http.Request, _ Ctx) error {
 	ct := request.Header.Get("Content-Type")
 	if ct == "" || strings.HasPrefix(ct, "text/plain") {
-		ct = DefaultContextType
+		ct = DefaultContentType
 	}
 	return binding.Default(request.Method, ct).Bind(request, a)
 }

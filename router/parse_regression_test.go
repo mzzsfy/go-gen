@@ -77,9 +77,9 @@ func FuncA() {}
 
 func TestParseDir_SkipsNonGoFiles(t *testing.T) {
 	srcDir := createTempSrc(t, map[string]string{
-		"go.mod":    "module testmod\n\ngo 1.22\n",
-		"pkg/a.go":  "package pkg",
-		"pkg/b.txt": "not a go file",
+		"go.mod":     "module testmod\n\ngo 1.22\n",
+		"pkg/a.go":   "package pkg",
+		"pkg/b.txt":  "not a go file",
 		"pkg/c.json": `{"key": "value"}`,
 	})
 
@@ -97,9 +97,9 @@ func TestParseDir_SkipsNonGoFiles(t *testing.T) {
 
 func TestParseDir_SkipsHiddenDirs(t *testing.T) {
 	srcDir := createTempSrc(t, map[string]string{
-		"go.mod":        "module testmod\n\ngo 1.22\n",
-		".hidden/a.go":  "package hidden",
-		"pkg/a.go":      "package pkg",
+		"go.mod":       "module testmod\n\ngo 1.22\n",
+		".hidden/a.go": "package hidden",
+		"pkg/a.go":     "package pkg",
 	})
 
 	pkgs, err := ParseDir(token.NewFileSet(), srcDir, nil, 0)
