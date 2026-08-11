@@ -13,7 +13,7 @@ import (
 	"os"
 )
 
-var genType = flag.String("genType", "echo-router", "生成类型")
+var genType = flag.String("genType", "echo-router", "生成类型: echo-router, gin-router, enhance-register, enhance-addFunction")
 
 func main() {
 	flag.Parse()

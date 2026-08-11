@@ -1,5 +1,34 @@
 # go-gen
 
+## 参数说明
+
+所有参数通过 flag 传入, 可在 `go:generate` 中使用.
+
+### 通用参数
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `-genType` | `echo-router` | 生成类型: `echo-router`, `gin-router`, `enhance-register`, `enhance-addFunction` |
+| `-workDir` | `./` | 扫描源码的根目录, 支持非 module root (自动向上递归查找 go.mod) |
+| `-outDir` | `./` | 核心文件和 import 文件的输出目录. **不影响各包的 `0_router___.go`** (始终写入包自身目录) |
+
+### router 专属参数
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `-moduleName` | `""` | 手动指定 module 名称, 为空时自动从 go.mod 读取 |
+| `-routerGroup` | `""` | 全局路由组前缀, 如 `/api/v1` |
+
+### enhance 专属参数
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `-annotation` | `@relation` | 需要识别的注释标识 |
+| `-functionName` | `RegisterGenRelation` | 生成的方法/函数名称 |
+| `-fileName` | `0_register.gen.go` | 生成文件名 |
+| `-findFileRegex` | `.+.go` | 匹配文件的 regex (非锚定, 支持部分匹配) |
+| `-usingPointers` | `false` | 生成是否使用指针类型 |
+
 ## addFunction
 
 添加特定注释的所有struct添加方法
@@ -115,3 +144,9 @@ func (t Test) HelloWorld1(g *gin.Context) {
 //go:generate go install github.com/mzzsfy/go-gen@latest
 //go:generate go-gen -genType=gin-router
 ```
+
+### 文件输出规则
+
+- `routers/` 核心文件和 `0_import___.go`: 受 `-outDir` 控制
+- 各包的 `0_router___.go`: **始终写入包自身目录** (不受 `-outDir` 影响)
+- `-workDir` 非 module root 时自动向上递归查找 go.mod, import 路径包含目录偏移

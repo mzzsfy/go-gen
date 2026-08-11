@@ -6,8 +6,8 @@ import (
 )
 
 var (
-	ModuleName  = flag.String("moduleName", "", "手动指定主module名称,否则读取go.mod文件夹")
-	RouterGroup = flag.String("routerGroup", "", "全局路由组前缀")
+	ModuleName  = flag.String("moduleName", "", "手动指定 module 名称, 为空时自动从 go.mod 读取 (支持向上递归查找)")
+	RouterGroup = flag.String("routerGroup", "", "全局路由组前缀, 如 /api/v1")
 )
 
 // 共享 flag 的便捷引用
