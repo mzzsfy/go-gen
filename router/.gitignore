@@ -1,0 +1,2 @@
+# 测试生成的路由文件 (Bug 1 修复后, 包路由文件写入 workDir 自身目录)
+testdata/src/**/0_router___.go

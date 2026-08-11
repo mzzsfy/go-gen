@@ -40,8 +40,8 @@ func TestGen_NestedPackageFileLocation(t *testing.T) {
 
 	// 文件应在 api/quant/ 和 api/backtest/ 下, 而非扁平的 quant/
 	nestedFiles := []string{
-		filepath.Join(outDir, "api", "quant", "0_router___.go"),
-		filepath.Join(outDir, "api", "backtest", "0_router___.go"),
+		filepath.Join(testdataDir(), "api", "quant", "0_router___.go"),
+		filepath.Join(testdataDir(), "api", "backtest", "0_router___.go"),
 	}
 	for _, f := range nestedFiles {
 		if _, err := os.Stat(f); os.IsNotExist(err) {
@@ -66,7 +66,7 @@ func TestGen_NestedPackageDeclaration(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.relPath, func(t *testing.T) {
-			bs, err := os.ReadFile(filepath.Join(outDir, tt.relPath))
+			bs, err := os.ReadFile(filepath.Join(testdataDir(), tt.relPath))
 			if err != nil {
 				t.Fatalf("读取文件失败: %v", err)
 			}
@@ -108,7 +108,7 @@ func TestGen_NestedPackageRouterContent(t *testing.T) {
 	Gen(engineGen{Name: "gin"})
 
 	// backtest 包含结构体方法, 验证多层级路径下结构体方法也正常
-	btFile := filepath.Join(outDir, "api", "backtest", "0_router___.go")
+	btFile := filepath.Join(testdataDir(), "api", "backtest", "0_router___.go")
 	bs, err := os.ReadFile(btFile)
 	if err != nil {
 		t.Fatalf("读取 backtest 路由文件失败: %v", err)
@@ -127,7 +127,7 @@ func TestGen_NestedPackageAllGoFiles(t *testing.T) {
 	Gen(engineGen{Name: "gin"})
 
 	// 遍历所有生成的 0_router___.go, 确保无路径式 package 声明
-	err := filepath.Walk(outDir, func(p string, info os.FileInfo, err error) error {
+	err := filepath.Walk(testdataDir(), func(p string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
@@ -164,8 +164,8 @@ func TestGen_NestedPackagePathClean(t *testing.T) {
 	Gen(engineGen{Name: "gin"})
 
 	// 生成的文件路径不应包含 // 或多余的 .
-	quantFile := filepath.Join(outDir, "api", "quant", "0_router___.go")
-	cleanPath := path.Clean(outDir + "/api/quant/0_router___.go")
+	quantFile := filepath.Join(testdataDir(), "api", "quant", "0_router___.go")
+	cleanPath := path.Clean(testdataDir() + "/api/quant/0_router___.go")
 	if filepath.ToSlash(filepath.Clean(quantFile)) != filepath.ToSlash(cleanPath) {
 		t.Errorf("路径不洁: %q vs %q", quantFile, cleanPath)
 	}

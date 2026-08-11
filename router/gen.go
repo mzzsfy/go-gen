@@ -23,21 +23,24 @@ func Gen(gen GenRouter) {
 	}
 	outDir := path.Clean(*OutDir)
 	baseModuleName := resolveModuleName(workDir)
+	// workImportBase: 包 import 路径前缀, 基于 workDir 相对 module root 的偏移
+	// outImportBase: routers 包 import 路径前缀, 基于 outDir 相对 module root 的偏移
+	workImportBase, outImportBase := computeImportBase(workDir, outDir, baseModuleName)
 
 	fmt.Printf("开始生成路由,工作路径: %s\n", workDir)
-	contexts := parsePackages(workDir, baseModuleName)
+	contexts := parsePackages(workDir, outImportBase)
 	fmt.Printf("开始生成\n")
 
 	mustWriteCoreFiles(outDir)
 	fmt.Printf("已写入核心文件\n")
 
-	pkgName := baseModuleName
-	if i := strings.LastIndex(baseModuleName, "/"); i > -1 {
-		pkgName = baseModuleName[i+1:]
+	pkgName := outImportBase
+	if i := strings.LastIndex(outImportBase, "/"); i > -1 {
+		pkgName = outImportBase[i+1:]
 	}
 	globalCtx := GlobalCtx{
 		PackageName:     pkgName,
-		PackageBaseName: baseModuleName,
+		PackageBaseName: workImportBase,
 		OutPath:         outDir,
 		Packages:        contexts,
 	}
@@ -46,7 +49,7 @@ func Gen(gen GenRouter) {
 	fmt.Printf("已写入引擎文件\n")
 
 	fmt.Printf("开始写入路由逻辑\n")
-	mustWriteRouterFiles(outDir, contexts)
+	mustWriteRouterFiles(workDir, contexts)
 	mustWriteImportFile(outDir, globalCtx)
 
 	must(gen.AfterGenRouter(globalCtx))
@@ -60,8 +63,38 @@ func resolveModuleName(workDir string) string {
 	return findModuleName(workDir)
 }
 
+// computeImportBase 计算 import 路径前缀, 包含目录相对 module root 的偏移
+func computeImportBase(workDir, outDir, moduleName string) (workBase, outBase string) {
+	root := findModuleRoot(workDir)
+	if root == "" {
+		return moduleName, moduleName
+	}
+	workBase = joinModulePath(root, workDir, moduleName)
+	outBase = joinModulePath(root, outDir, moduleName)
+	return
+}
+
+// joinModulePath 拼接 module name 和目录相对 module root 的偏移
+// 目录不在 module root 内时仅返回 moduleName
+func joinModulePath(moduleRoot, dir, moduleName string) string {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return moduleName
+	}
+	rel, err := filepath.Rel(moduleRoot, abs)
+	if err != nil || rel == "." {
+		return moduleName
+	}
+	// 目录不在 module root 内, 无法计算有效 import 偏移
+	rel = strings.ReplaceAll(rel, "\\", "/")
+	if strings.HasPrefix(rel, "../") {
+		return moduleName
+	}
+	return path.Join(moduleName, rel)
+}
+
 // parsePackages 扫描目录, 提取路由信息, 返回按包路径排序的 Package 列表
-func parsePackages(workDir, baseModuleName string) []*Package {
+func parsePackages(workDir, importBase string) []*Package {
 	fset := token.NewFileSet()
 	pkgs, err := ParseDir(fset, workDir, nil, parser.ParseComments)
 	if err != nil {
@@ -79,7 +112,7 @@ func parsePackages(workDir, baseModuleName string) []*Package {
 	var contexts []*Package
 	for pname, p := range pkgs {
 		fmt.Printf("分析中: %s\n", pname)
-		pc := buildPackage(pname, p, workDir, baseModuleName)
+		pc := buildPackage(pname, p, workDir, importBase)
 		if len(pc.Functions) > 0 || len(pc.StructFunctions) > 0 {
 			contexts = append(contexts, pc)
 		}
@@ -91,15 +124,12 @@ func parsePackages(workDir, baseModuleName string) []*Package {
 }
 
 // buildPackage 从单个 ast.Package 提取路由和结构体方法
-func buildPackage(pname string, p *ast.Package, workDir, baseModuleName string) *Package {
+func buildPackage(pname string, p *ast.Package, workDir, importBase string) *Package {
 	pc := &Package{
 		BasePath:          workDir,
 		PackagePathName:   pname,
 		PackageName:       path.Base(pname),
-	}
-	pc.PackageBaseName = findModuleName(path.Base(pname))
-	if pc.PackageBaseName == "" {
-		pc.PackageBaseName = baseModuleName
+		PackageBaseName:   importBase,
 	}
 	packageGroupPath := findPackageGroupPath(p)
 	for _, f := range p.Files {
@@ -292,11 +322,11 @@ func mustWriteCoreFiles(outDir string) {
 	}
 }
 
-// mustWriteRouterFiles 按包渲染路由注册文件
-func mustWriteRouterFiles(outDir string, contexts []*Package) {
+// mustWriteRouterFiles 按包渲染路由注册文件, 始终写入包自身目录 (不受 outDir 影响)
+func mustWriteRouterFiles(workDir string, contexts []*Package) {
 	t := template.Must(template.New("router.go").Parse(mustReadCoreTemplate("_router.gotmp")))
 	for _, ctx := range contexts {
-		wPath := path.Clean(outDir + "/" + ctx.PackagePathName + "/0_router___.go")
+		wPath := path.Clean(workDir + "/" + ctx.PackagePathName + "/0_router___.go")
 		ctx.WritePath = wPath
 		if err := os.MkdirAll(filepath.Dir(wPath), 0755); err != nil {
 			panic(err)

@@ -56,7 +56,7 @@ func bareFunc() {}
 	outDir := t.TempDir()
 	genWithFlags(t, srcDir, outDir, "testmod", "")
 
-	bs, _ := os.ReadFile(filepath.Join(outDir, "api", "0_router___.go"))
+	bs, _ := os.ReadFile(filepath.Join(srcDir, "api", "0_router___.go"))
 	content := string(bs)
 	if !strings.Contains(content, "Handler") {
 		t.Error("有 @Router 的 Handler 应被注册")

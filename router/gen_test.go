@@ -45,7 +45,7 @@ func TestGen_ProducesAllFiles(t *testing.T) {
 	}
 
 	// 路由注册文件 (按包名生成)
-	routerFile := filepath.Join(outDir, "user", "0_router___.go")
+	routerFile := filepath.Join(testdataDir(), "user", "0_router___.go")
 	if _, err := os.Stat(routerFile); os.IsNotExist(err) {
 		t.Errorf("缺少路由注册文件: user/0_router___.go")
 	}
@@ -64,7 +64,7 @@ func TestGen_RouterRegistrationContent(t *testing.T) {
 
 	Gen(engineGen{Name: "gin"})
 
-	routerFile := filepath.Join(outDir, "user", "0_router___.go")
+	routerFile := filepath.Join(testdataDir(), "user", "0_router___.go")
 	bs, err := os.ReadFile(routerFile)
 	if err != nil {
 		t.Fatalf("读取路由注册文件失败: %v", err)
@@ -159,7 +159,7 @@ func TestGen_RouterWithoutMethod(t *testing.T) {
 
 	Gen(engineGen{Name: "gin"})
 
-	routerFile := filepath.Join(outDir, "user", "0_router___.go")
+	routerFile := filepath.Join(testdataDir(), "user", "0_router___.go")
 	bs, err := os.ReadFile(routerFile)
 	if err != nil {
 		t.Fatalf("读取路由注册文件失败: %v", err)
@@ -177,7 +177,7 @@ func TestGen_MultipleStructMethods(t *testing.T) {
 
 	Gen(engineGen{Name: "gin"})
 
-	routerFile := filepath.Join(outDir, "user", "0_router___.go")
+	routerFile := filepath.Join(testdataDir(), "user", "0_router___.go")
 	bs, err := os.ReadFile(routerFile)
 	if err != nil {
 		t.Fatalf("读取路由注册文件失败: %v", err)
@@ -219,11 +219,11 @@ func TestGen_MultiplePackages(t *testing.T) {
 	Gen(engineGen{Name: "gin"})
 
 	// 两个包的路由文件都应存在
-	userFile := filepath.Join(outDir, "user", "0_router___.go")
+	userFile := filepath.Join(testdataDir(), "user", "0_router___.go")
 	if _, err := os.Stat(userFile); os.IsNotExist(err) {
 		t.Errorf("缺少 user/0_router___.go")
 	}
-	adminFile := filepath.Join(outDir, "admin", "0_router___.go")
+	adminFile := filepath.Join(testdataDir(), "admin", "0_router___.go")
 	if _, err := os.Stat(adminFile); os.IsNotExist(err) {
 		t.Errorf("缺少 admin/0_router___.go")
 	}
@@ -254,7 +254,7 @@ func TestGen_FunctionSorting(t *testing.T) {
 
 	Gen(engineGen{Name: "gin"})
 
-	routerFile := filepath.Join(outDir, "user", "0_router___.go")
+	routerFile := filepath.Join(testdataDir(), "user", "0_router___.go")
 	bs, err := os.ReadFile(routerFile)
 	if err != nil {
 		t.Fatalf("读取路由注册文件失败: %v", err)
@@ -355,7 +355,7 @@ func Handler2() {}
 	outDir := t.TempDir()
 	genWithFlags(t, srcDir, outDir, "testmod", "")
 
-	bs, err := os.ReadFile(filepath.Join(outDir, "api", "0_router___.go"))
+	bs, err := os.ReadFile(filepath.Join(srcDir, "api", "0_router___.go"))
 	if err != nil {
 		t.Fatalf("读取路由文件失败: %v", err)
 	}
@@ -379,7 +379,7 @@ func Handler() {}
 	outDir := t.TempDir()
 	genWithFlags(t, srcDir, outDir, "testmod", "/api/global")
 
-	bs, err := os.ReadFile(filepath.Join(outDir, "api", "0_router___.go"))
+	bs, err := os.ReadFile(filepath.Join(srcDir, "api", "0_router___.go"))
 	if err != nil {
 		t.Fatalf("读取路由文件失败: %v", err)
 	}
@@ -417,7 +417,7 @@ func FuncHandler() {}
 	// 全局 group /global, 应被所有更高优先级覆盖
 	genWithFlags(t, srcDir, outDir, "testmod", "/global")
 
-	bs, err := os.ReadFile(filepath.Join(outDir, "pkg", "0_router___.go"))
+	bs, err := os.ReadFile(filepath.Join(srcDir, "pkg", "0_router___.go"))
 	if err != nil {
 		t.Fatalf("读取路由文件失败: %v", err)
 	}
@@ -448,7 +448,7 @@ func Handler() {}
 	outDir := t.TempDir()
 	genWithFlags(t, srcDir, outDir, "testmod", "/global")
 
-	bs, _ := os.ReadFile(filepath.Join(outDir, "pkg", "0_router___.go"))
+	bs, _ := os.ReadFile(filepath.Join(srcDir, "pkg", "0_router___.go"))
 	// 包级 /pkg 覆盖全局 /global
 	assertContains(t, string(bs), `Router("/pkg", Handler, "/test", "GET")`)
 }
@@ -471,7 +471,7 @@ func SwagNoMethod() {}
 	outDir := t.TempDir()
 	genWithFlags(t, srcDir, outDir, "testmod", "")
 
-	bs, _ := os.ReadFile(filepath.Join(outDir, "api", "0_router___.go"))
+	bs, _ := os.ReadFile(filepath.Join(srcDir, "api", "0_router___.go"))
 	content := string(bs)
 	// swag 格式 @Router /users/{id} [GET] 正确解析
 	assertContains(t, content, `Router("", SwagHandler, "/users/{id}", "GET")`)
@@ -503,7 +503,7 @@ func OtherHandler() {}
 	outDir := t.TempDir()
 	genWithFlags(t, srcDir, outDir, "testmod", "")
 
-	bs, _ := os.ReadFile(filepath.Join(outDir, "pkg", "0_router___.go"))
+	bs, _ := os.ReadFile(filepath.Join(srcDir, "pkg", "0_router___.go"))
 	content := string(bs)
 	// handler.go 有文件级 /file, 应覆盖包文档 /pkg
 	assertContains(t, content, `Router("/file", FileHandler, "/a", "GET")`)

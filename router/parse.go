@@ -54,14 +54,39 @@ type GenRouter interface {
 	AfterGenRouter(GlobalCtx) error
 }
 
+// findModuleRoot 从 dir 向上递归查找 go.mod 所在目录
+func findModuleRoot(dir string) string {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return ""
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(abs, "go.mod")); err == nil {
+			return abs
+		}
+		parent := filepath.Dir(abs)
+		if parent == abs {
+			break
+		}
+		abs = parent
+	}
+	return ""
+}
+
+// findModuleName 递归向上查找 go.mod, 返回 module 名
 func findModuleName(dir string) string {
-	file, e := os.ReadFile(dir + "/go.mod")
-	if e == nil {
-		for _, s := range strings.Split(string(file), "\n") {
-			fields := strings.Fields(s)
-			if len(fields) >= 2 && fields[0] == "module" {
-				return fields[1]
-			}
+	root := findModuleRoot(dir)
+	if root == "" {
+		return ""
+	}
+	file, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	if err != nil {
+		return ""
+	}
+	for _, s := range strings.Split(string(file), "\n") {
+		fields := strings.Fields(s)
+		if len(fields) >= 2 && fields[0] == "module" {
+			return fields[1]
 		}
 	}
 	return ""
