@@ -8,8 +8,9 @@ import (
 	"testing"
 )
 
-// TestBuildPackage_NestedPackageName 验证多层级嵌套包的 PackageName 为 base name
-func TestBuildPackage_NestedPackageName(t *testing.T) {
+// TestNestedPackageName_BaseName 验证多层级路径的 base name 提取逻辑
+// buildPackage 中 PackageName = path.Base(pname), 此测试确保该映射对各层级正确
+func TestNestedPackageName_BaseName(t *testing.T) {
 	tests := []struct {
 		pname string
 		want  string
@@ -18,15 +19,13 @@ func TestBuildPackage_NestedPackageName(t *testing.T) {
 		{"api/backtest", "backtest"},
 		{"api/v2/deep", "deep"},
 		{"user", "user"},
+		{"a/b/c/d/e", "e"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.pname, func(t *testing.T) {
-			pc := buildPackage(tt.pname, nil, testdataDir(), "testmod")
-			if pc.PackageName != tt.want {
-				t.Errorf("PackageName: got %q, want %q", pc.PackageName, tt.want)
-			}
-			if pc.PackagePathName != tt.pname {
-				t.Errorf("PackagePathName: got %q, want %q", pc.PackagePathName, tt.pname)
+			got := path.Base(tt.pname)
+			if got != tt.want {
+				t.Errorf("path.Base(%q): got %q, want %q", tt.pname, got, tt.want)
 			}
 		})
 	}

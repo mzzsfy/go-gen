@@ -5,6 +5,6 @@ package {{ .PackageName }}
 
 import (
 	{{- range $p := .Packages}}
-	_ "{{ .PackageBaseName }}/{{$p.PackageModuleName}}"
+	_ "{{ .PackageBaseName }}/{{$p.PackagePathName}}"
 	{{- end }}
 )

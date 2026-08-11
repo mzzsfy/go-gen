@@ -96,7 +96,6 @@ func buildPackage(pname string, p *ast.Package, workDir, baseModuleName string) 
 		BasePath:          workDir,
 		PackagePathName:   pname,
 		PackageName:       path.Base(pname),
-		PackageModuleName: strings.ReplaceAll(pname, "/", "."),
 	}
 	pc.PackageBaseName = findModuleName(path.Base(pname))
 	if pc.PackageBaseName == "" {

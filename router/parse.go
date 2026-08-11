@@ -40,14 +40,13 @@ type StructFunction struct {
 	StructName string
 }
 type Package struct {
-	BasePath          string
-	WritePath         string
-	PackageBaseName   string
-	PackagePathName   string // 相对workDir的完整路径, 如 "api/quant"
-	PackageName       string // package声明名, 为路径的base name, 如 "quant"
-	PackageModuleName string
-	Functions         []Function
-	StructFunctions   []StructFunction
+	BasePath        string
+	WritePath       string
+	PackageBaseName string
+	PackagePathName string // 相对workDir的完整路径, 如 "api/quant"
+	PackageName     string // package声明名, 为路径的base name, 如 "quant"
+	Functions       []Function
+	StructFunctions []StructFunction
 }
 
 type GenRouter interface {
