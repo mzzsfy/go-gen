@@ -11,13 +11,11 @@ import (
 	"sync"
 )
 
-var (
-	allMethods = []string{
-		http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch,
-		http.MethodHead, http.MethodOptions, http.MethodDelete, http.MethodConnect,
-		http.MethodTrace,
-	}
-)
+var allMethods = []string{
+	http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch,
+	http.MethodHead, http.MethodOptions, http.MethodDelete, http.MethodConnect,
+	http.MethodTrace,
+}
 
 var ginCtxPool = sync.Pool{
 	New: func() any {
@@ -31,39 +29,26 @@ func NewGinRouter(group *gin.RouterGroup) Router {
 	r := &GinRouter{g: group}
 	group.Handlers = append(gin.HandlersChain{func(c *gin.Context) {
 		ctx := r.getOrMakeCtx(c)
-		defer func() {
-			if err := recover(); err != nil {
-				ctx.SetValue(KeyPanicOriginal, err)
-				if ne, ok := err.(CtxError); ok {
-					ctx.SetError(ne)
-				} else if ne, ok := err.(error); ok {
-					ctx.SetError(CtxError{
-						Err: fmt.Errorf("http: panic %w", ne),
-						Ctx: "panic",
-					})
-				} else {
-					ctx.SetError(CtxError{
-						Err: fmt.Errorf("http: panic %+v", ne),
-						Ctx: "panic",
-					})
-				}
-				e1 := ctx.Error()
-				if e1 != nil {
-					ok, e := r.handleResultError(ctx, e1)
-					if !ok {
-						if e != nil {
-							r.handleResult(ctx, e)
-						}
+		defer r.reclaimCtx(ctx)
+
+		func() {
+			defer func() {
+				if p := recover(); p != nil {
+					ctx.SetValue(KeyPanicOriginal, p)
+					switch ne := p.(type) {
+					case CtxError:
+						ctx.SetError(ne)
+					case error:
+						ctx.SetError(CtxError{Err: fmt.Errorf("http: panic %w", ne), Ctx: "panic"})
+					default:
+						ctx.SetError(CtxError{Err: fmt.Errorf("http: panic %+v", p), Ctx: "panic"})
 					}
-					r.reclaimCtx(ctx)
-					return
 				}
-			}
-			r.reclaimCtx(ctx)
+			}()
+			c.Next()
 		}()
-		c.Next()
-		err := ctx.Error()
-		if err != nil {
+
+		if err := ctx.Error(); err != nil {
 			ok, e := r.handleResultError(ctx, err)
 			if !ok {
 				if e != nil {
@@ -79,9 +64,9 @@ func NewGinRouter(group *gin.RouterGroup) Router {
 
 type GinRouter struct {
 	baseRouter
-	g		 *gin.RouterGroup
-	lock	  sync.Mutex
-	allGroups map[string]*gin.RouterGroup
+	g          *gin.RouterGroup
+	lock       sync.Mutex
+	allGroups  map[string]*gin.RouterGroup
 }
 
 func (r *GinRouter) initGinCtx(ctx *GinCtx, c *gin.Context) {
@@ -116,7 +101,6 @@ func (r *GinRouter) reclaimCtx(ctx *GinCtx) {
 	ctx.ginCtx = nil
 	ctx.r = nil
 	ctx.err = nil
-	ctx.lock = sync.Mutex{}
 	ginCtxPool.Put(ctx)
 }
 
@@ -137,13 +121,17 @@ func (r *GinRouter) group(group string) *gin.RouterGroup {
 	r.allGroups[group] = g
 	return g
 }
+
 func (r *GinRouter) Router(group string, handler func(Ctx) any, relativePath string, methods ...string) {
 	if len(methods) <= 0 {
 		methods = allMethods
 	}
+	mws := r.getMiddleware(group)
 	h := func(c *gin.Context) {
 		ctx := r.getOrMakeCtx(c)
-		ctx.SetValue(KeyContextResult, handler(ctx))
+		r.runWithMiddleware(mws, func() {
+			ctx.SetValue(KeyContextResult, handler(ctx))
+		}, ctx)
 	}
 	for i := range methods {
 		methods[i] = strings.ToUpper(methods[i])
@@ -154,7 +142,5 @@ func (r *GinRouter) Router(group string, handler func(Ctx) any, relativePath str
 }
 
 func (r *GinRouter) GroupMiddleware(group string, order int, middleware func(next func(), ctx Ctx)) {
-	r.group(group).Use(func(ctx *gin.Context) {
-		middleware(ctx.Next, r.getOrMakeCtx(ctx))
-	})
+	r.addMiddleware(group, order, middleware)
 }

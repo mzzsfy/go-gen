@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -161,6 +160,9 @@ func (w *responseWriter) afterBodyWrite() {
 }
 
 func (w *responseWriter) Write(data []byte) (n int, err error) {
+	if w.Written() && w.size > 0 {
+		return 0, nil
+	}
 	written := w.Written()
 	w.WriteHeaderNow()
 	if !written {
@@ -173,6 +175,9 @@ func (w *responseWriter) Write(data []byte) (n int, err error) {
 }
 
 func (w *responseWriter) WriteString(s string) (n int, err error) {
+	if w.Written() && w.size > 0 {
+		return 0, nil
+	}
 	written := w.Written()
 	w.WriteHeaderNow()
 	if !written {
@@ -221,12 +226,11 @@ func (w *responseWriter) Flush() {
 }
 
 type baseCtx struct {
-	lock	 sync.Mutex
 	request  *http.Request
 	logger   Logger
 	response *responseWriter
-	query	url.Values
-	ctx	  context.Context
+	query    url.Values
+	ctx      context.Context
 	result   any
 	panicVal any
 	values   map[any]any
@@ -237,21 +241,15 @@ func (b *baseCtx) Response() Response {
 }
 
 func (b *baseCtx) BeforeHeader(fn func()) {
-	b.lock.Lock()
 	b.response.beforeHeader = append(b.response.beforeHeader, fn)
-	b.lock.Unlock()
 }
 
 func (b *baseCtx) BeforeBody(fn func()) {
-	b.lock.Lock()
 	b.response.beforeBody = append(b.response.beforeBody, fn)
-	b.lock.Unlock()
 }
 
 func (b *baseCtx) OnBodyWrite(fn func()) {
-	b.lock.Lock()
 	b.response.onBodyWrite = append(b.response.onBodyWrite, fn)
-	b.lock.Unlock()
 }
 
 func (b *baseCtx) Request() *http.Request {
@@ -336,29 +334,30 @@ func (b *baseCtx) SetContext(ctx context.Context) {
 	b.ctx = ctx
 }
 
-// context.Context 实现: 生命周期委托 b.ctx, Value 合并 values 快速路径与标准 context 链
-func (b *baseCtx) Deadline() (time.Time, bool) { return b.ctx.Deadline() }
-func (b *baseCtx) Done() <-chan struct{}        { return b.ctx.Done() }
-func (b *baseCtx) Err() error                   { return b.ctx.Err() }
-func (b *baseCtx) Value(key any) any {
-	if k, ok := key.(_flag); ok {
-		switch k {
-		case KeyContextResult:
-			return b.result
-		case KeyPanicOriginal:
-			return b.panicVal
-		}
-	}
-	if b.values != nil {
-		if v, ok := b.values[key]; ok {
+// detachedContext 是 Context() 返回的不可变快照
+// 池化 ctx 回收后, 闭包持有的 context 不被下一个请求篡改
+type detachedContext struct {
+	parent context.Context
+	values map[any]any
+}
+
+func (d *detachedContext) Deadline() (time.Time, bool) { return d.parent.Deadline() }
+func (d *detachedContext) Done() <-chan struct{}        { return d.parent.Done() }
+func (d *detachedContext) Err() error                   { return d.parent.Err() }
+func (d *detachedContext) Value(key any) any {
+	if d.values != nil {
+		if v, ok := d.values[key]; ok {
 			return v
 		}
 	}
-	return b.ctx.Value(key)
+	return d.parent.Value(key)
 }
 
 func (b *baseCtx) Context() context.Context {
-	return b
+	return &detachedContext{
+		parent: b.ctx,
+		values: b.values,
+	}
 }
 
 func (b *baseCtx) GetValue(key any) any {

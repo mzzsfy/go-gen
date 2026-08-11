@@ -23,42 +23,28 @@ func NewEchoRouter(group *echo.Group) Router {
 	g1 := group.Group("", func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			ctx := r.getOrMakeCtx(c)
-			defer func() {
-				if err := recover(); err != nil {
-					ctx.SetValue(KeyPanicOriginal, err)
-					if ne, ok := err.(CtxError); ok {
-						ctx.SetError(ne)
-					} else if ne, ok := err.(error); ok {
-						ctx.SetError(CtxError{
-							Err: fmt.Errorf("http: panic %w", ne),
-							Ctx: "panic",
-						})
-					} else {
-						ctx.SetError(CtxError{
-							Err: fmt.Errorf("http: panic %+v", ne),
-							Ctx: "panic",
-						})
-					}
-					e1 := ctx.Error()
-					if e1 != nil {
-						ok, e := r.handleResultError(ctx, e1)
-						if !ok {
-							if e != nil {
-								r.handleResult(ctx, e)
-							}
+			defer r.reclaimCtx(ctx)
+
+			func() {
+				defer func() {
+					if p := recover(); p != nil {
+						ctx.SetValue(KeyPanicOriginal, p)
+						switch ne := p.(type) {
+						case CtxError:
+							ctx.SetError(ne)
+						case error:
+							ctx.SetError(CtxError{Err: fmt.Errorf("http: panic %w", ne), Ctx: "panic"})
+						default:
+							ctx.SetError(CtxError{Err: fmt.Errorf("http: panic %+v", p), Ctx: "panic"})
 						}
-						r.reclaimCtx(ctx)
-						return
 					}
+				}()
+				if e := next(c); e != nil {
+					ctx.SetError(e)
 				}
-				r.reclaimCtx(ctx)
 			}()
-			e := next(c)
-			if e != nil {
-				ctx.SetError(e)
-			}
-			err := ctx.Error()
-			if err != nil {
+
+			if err := ctx.Error(); err != nil {
 				ok, e := r.handleResultError(ctx, err)
 				if !ok {
 					if e != nil {
@@ -67,10 +53,7 @@ func NewEchoRouter(group *echo.Group) Router {
 					return nil
 				}
 			}
-			res := ctx.GetValue(KeyContextResult)
-			if res != nil {
-				r.handleResult(ctx, res)
-			}
+			r.handleResult(ctx, ctx.GetValue(KeyContextResult))
 			return nil
 		}
 	})
@@ -80,9 +63,9 @@ func NewEchoRouter(group *echo.Group) Router {
 
 type EchoRouter struct {
 	baseRouter
-	g		 *echo.Group
-	lock	  sync.Mutex
-	allGroups map[string]*echo.Group
+	g          *echo.Group
+	lock       sync.Mutex
+	allGroups  map[string]*echo.Group
 }
 
 func (r *EchoRouter) initEchoCtx(ctx *EchoCtx, c echo.Context) {
@@ -119,7 +102,6 @@ func (r *EchoRouter) reclaimCtx(ctx *EchoCtx) {
 	ctx.echoCtx = nil
 	ctx.r = nil
 	ctx.err = nil
-	ctx.lock = sync.Mutex{}
 	echoCtxPool.Put(ctx)
 }
 
@@ -142,13 +124,13 @@ func (r *EchoRouter) getGroup(group string) *echo.Group {
 }
 
 func (r *EchoRouter) Router(group string, handler func(Ctx) any, relativePath string, methods ...string) {
-	g1 := r.g
-	if group != "" {
-		g1 = r.getGroup(group)
-	}
+	g1 := r.getGroup(group)
+	mws := r.getMiddleware(group)
 	h := func(c echo.Context) error {
 		ctx := r.getOrMakeCtx(c)
-		ctx.SetValue(KeyContextResult, handler(ctx))
+		r.runWithMiddleware(mws, func() {
+			ctx.SetValue(KeyContextResult, handler(ctx))
+		}, ctx)
 		return nil
 	}
 	if len(methods) == 0 {
@@ -162,16 +144,5 @@ func (r *EchoRouter) Router(group string, handler func(Ctx) any, relativePath st
 }
 
 func (r *EchoRouter) GroupMiddleware(group string, order int, middleware func(next func(), ctx Ctx)) {
-	r.getGroup(group).Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			ctx := r.getOrMakeCtx(c)
-			middleware(func() {
-				err := next(c)
-				if err != nil {
-					c.Error(err)
-				}
-			}, ctx)
-			return nil
-		}
-	})
+	r.addMiddleware(group, order, middleware)
 }

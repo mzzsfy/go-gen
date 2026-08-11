@@ -3,6 +3,8 @@
 
 package routers
 
+import "slices"
+
 type Router interface {
 	Router(group string, handler func(Ctx) any, relativePath string, methods ...string)
 	GroupMiddleware(group string, order int, middleware func(next func(), ctx Ctx))
@@ -18,12 +20,58 @@ type LifeCycleManager[T any] interface {
 	ReclaimSelf(*T)
 }
 
+// middlewareEntry 内部中间件条目, 按 order 排序执行
+type middlewareEntry struct {
+	order int
+	fn    func(next func(), ctx Ctx)
+}
+
 type baseRouter struct {
-	validator	 Validator
-	resultHandler func(Ctx, any)
-	errorHandler  func(Ctx, error) (bool, error)
-	logger		Logger
-	onError	   func(Ctx, error) error
+	validator       Validator
+	resultHandler   func(Ctx, any)
+	errorHandler    func(Ctx, error) (bool, error)
+	logger          Logger
+	onError         func(Ctx, error) error
+	groupMiddleware map[string][]middlewareEntry
+}
+
+func (r *baseRouter) addMiddleware(group string, order int, fn func(next func(), ctx Ctx)) {
+	if r.groupMiddleware == nil {
+		r.groupMiddleware = map[string][]middlewareEntry{}
+	}
+	mws := append(r.groupMiddleware[group], middlewareEntry{order, fn})
+	slices.SortFunc(mws, func(a, b middlewareEntry) int {
+		return a.order - b.order
+	})
+	r.groupMiddleware[group] = mws
+}
+
+func (r *baseRouter) getMiddleware(group string) []middlewareEntry {
+	return r.groupMiddleware[group]
+}
+
+// runWithMiddleware 按 order 排序后的中间件链执行, 最后调用 handler
+func (r *baseRouter) runWithMiddleware(mws []middlewareEntry, handler func(), ctx Ctx) {
+	if len(mws) == 0 {
+		handler()
+		return
+	}
+	idx := 0
+	handlerDone := false
+	var next func()
+	next = func() {
+		if idx >= len(mws) {
+			if !handlerDone {
+				handlerDone = true
+				handler()
+			}
+			return
+		}
+		mw := mws[idx]
+		idx++
+		mw.fn(next, ctx)
+	}
+	next()
 }
 
 func (r *baseRouter) Logger(l Logger) {
