@@ -12,81 +12,11 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/mzzsfy/go-gen/register"
 )
 
 // bind 测试: 验证 gin/echo 的 BindMultipleMap 和 BindBody 正确工作
 // gin: 覆盖 noValidate 不 panic + MapFormWithTag
 // echo: 覆盖 bindMapWithTag 全类型分支
-
-type bindEngineSpec struct {
-	engine      string
-	initContent string
-	mainContent string
-}
-
-var bindSpecs = []bindEngineSpec{
-	{
-		engine: "gin",
-		initContent: `package routers
-
-import "github.com/gin-gonic/gin"
-
-var DefaultEngine = gin.New()
-
-func init() {
-	DefaultRouters["default"] = NewGinRouter(DefaultEngine.Group(""))
-}
-`,
-		mainContent: `package main
-
-import (
-	"net/http"
-	"os"
-	"testmod/routers"
-	_ "testmod/user"
-)
-
-func main() {
-	addr := os.Getenv("LISTEN_ADDR")
-	if addr == "" {
-		addr = ":18080"
-	}
-	http.ListenAndServe(addr, routers.DefaultEngine)
-}
-`,
-	},
-	{
-		engine: "echo",
-		initContent: `package routers
-
-import "github.com/labstack/echo/v4"
-
-var DefaultEngine = echo.New()
-
-func init() {
-	DefaultRouters["default"] = NewEchoRouter(DefaultEngine.Group(""))
-}
-`,
-		mainContent: `package main
-
-import (
-	"os"
-	"testmod/routers"
-	_ "testmod/user"
-)
-
-func main() {
-	addr := os.Getenv("LISTEN_ADDR")
-	if addr == "" {
-		addr = ":18080"
-	}
-	routers.DefaultEngine.Start(addr)
-}
-`,
-	},
-}
 
 // bindHandlerSrc 覆盖 query 绑定(各类型) 和 json body 绑定
 const bindHandlerSrc = "package user\n" +
@@ -132,24 +62,24 @@ const bindHandlerSrc = "package user\n" +
 	"}\n"
 
 func TestIntegration_Bind(t *testing.T) {
-	for _, spec := range bindSpecs {
+	for _, spec := range integrationSpecs {
 		t.Run(spec.engine, func(t *testing.T) {
 			testBindEngine(t, spec)
 		})
 	}
 }
 
-func testBindEngine(t *testing.T, spec bindEngineSpec) {
+func testBindEngine(t *testing.T, spec engineSpec) {
 	t.Helper()
 	modDir := t.TempDir()
 	writeFile(t, modDir, "go.mod", "module testmod\n\ngo 1.22\n")
 	writeFile(t, modDir, "user/handler.go", bindHandlerSrc)
 
-	*register.WorkDir = modDir
-	*register.OutDir = modDir
-	*register.ModuleName = "testmod"
-	*register.RouterGroup = ""
-	Gen(genGin{Name: spec.engine})
+	*WorkDir = modDir
+	*OutDir = modDir
+	*ModuleName = "testmod"
+	*RouterGroup = ""
+	Gen(engineGen{Name: spec.engine})
 
 	writeFile(t, modDir, "routers/0__init___.go", spec.initContent)
 	writeFile(t, modDir, "cmd/server/main.go", spec.mainContent)

@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/mzzsfy/go-gen/register"
 )
 
 // TestGen_ProducesAllFiles 测试完整生成流水线产生所有预期文件
@@ -14,7 +12,7 @@ func TestGen_ProducesAllFiles(t *testing.T) {
 	outDir := t.TempDir()
 	setupFlags(t, outDir)
 
-	Gen(genGin{Name: "gin"})
+	Gen(engineGen{Name: "gin"})
 
 	routersDir := filepath.Join(outDir, "routers")
 	expectedCoreFiles := []string{
@@ -64,7 +62,7 @@ func TestGen_RouterRegistrationContent(t *testing.T) {
 	outDir := t.TempDir()
 	setupFlags(t, outDir)
 
-	Gen(genGin{Name: "gin"})
+	Gen(engineGen{Name: "gin"})
 
 	routerFile := filepath.Join(outDir, "user", "0_router___.go")
 	bs, err := os.ReadFile(routerFile)
@@ -91,7 +89,7 @@ func TestGen_ImportFileContent(t *testing.T) {
 	outDir := t.TempDir()
 	setupFlags(t, outDir)
 
-	Gen(genGin{Name: "gin"})
+	Gen(engineGen{Name: "gin"})
 
 	importFile := filepath.Join(outDir, "0_import___.go")
 	bs, err := os.ReadFile(importFile)
@@ -109,7 +107,7 @@ func TestGen_CoreTemplateCopiedCorrectly(t *testing.T) {
 	outDir := t.TempDir()
 	setupFlags(t, outDir)
 
-	Gen(genGin{Name: "gin"})
+	Gen(engineGen{Name: "gin"})
 
 	routerCore := filepath.Join(outDir, "routers", "0_router___.go")
 	bs, err := os.ReadFile(routerCore)
@@ -141,10 +139,10 @@ func TestGen_CoreTemplateCopiedCorrectly(t *testing.T) {
 
 func setupFlags(t *testing.T, outDir string) {
 	t.Helper()
-	*register.WorkDir = testdataDir()
-	*register.OutDir = outDir
-	*register.ModuleName = "testmod"
-	*register.RouterGroup = ""
+	*WorkDir = testdataDir()
+	*OutDir = outDir
+	*ModuleName = "testmod"
+	*RouterGroup = ""
 }
 
 func assertContains(t *testing.T, content, expected string) {
@@ -159,7 +157,7 @@ func TestGen_RouterWithoutMethod(t *testing.T) {
 	outDir := t.TempDir()
 	setupFlags(t, outDir)
 
-	Gen(genGin{Name: "gin"})
+	Gen(engineGen{Name: "gin"})
 
 	routerFile := filepath.Join(outDir, "user", "0_router___.go")
 	bs, err := os.ReadFile(routerFile)
@@ -177,7 +175,7 @@ func TestGen_MultipleStructMethods(t *testing.T) {
 	outDir := t.TempDir()
 	setupFlags(t, outDir)
 
-	Gen(genGin{Name: "gin"})
+	Gen(engineGen{Name: "gin"})
 
 	routerFile := filepath.Join(outDir, "user", "0_router___.go")
 	bs, err := os.ReadFile(routerFile)
@@ -197,7 +195,7 @@ func TestGen_EchoEngine(t *testing.T) {
 	outDir := t.TempDir()
 	setupFlags(t, outDir)
 
-	Gen(genGin{Name: "echo"})
+	Gen(engineGen{Name: "echo"})
 
 	routersDir := filepath.Join(outDir, "routers")
 	echoFiles := []string{
@@ -218,7 +216,7 @@ func TestGen_MultiplePackages(t *testing.T) {
 	outDir := t.TempDir()
 	setupFlags(t, outDir)
 
-	Gen(genGin{Name: "gin"})
+	Gen(engineGen{Name: "gin"})
 
 	// 两个包的路由文件都应存在
 	userFile := filepath.Join(outDir, "user", "0_router___.go")
@@ -254,7 +252,7 @@ func TestGen_FunctionSorting(t *testing.T) {
 	outDir := t.TempDir()
 	setupFlags(t, outDir)
 
-	Gen(genGin{Name: "gin"})
+	Gen(engineGen{Name: "gin"})
 
 	routerFile := filepath.Join(outDir, "user", "0_router___.go")
 	bs, err := os.ReadFile(routerFile)
@@ -290,14 +288,14 @@ func TestGen_InitFileSkipIfExists(t *testing.T) {
 
 	// 预先创建 init 文件, 写入特定内容
 	initPath := filepath.Join(outDir, "routers", "0__init___.go")
-	os.MkdirAll(filepath.Dir(initPath), os.ModeDir)
+	os.MkdirAll(filepath.Dir(initPath), 0755)
 	customContent := "// 自定义内容, 不应被覆盖"
 	err := os.WriteFile(initPath, []byte(customContent), os.ModePerm)
 	if err != nil {
 		t.Fatalf("写入预设文件失败: %v", err)
 	}
 
-	Gen(genGin{Name: "gin"})
+	Gen(engineGen{Name: "gin"})
 
 	// 验证内容未被覆盖
 	bs, err := os.ReadFile(initPath)
@@ -327,11 +325,11 @@ func createTempSrc(t *testing.T, files map[string]string) string {
 
 func genWithFlags(t *testing.T, srcDir, outDir, moduleName, globalGroup string) {
 	t.Helper()
-	*register.WorkDir = srcDir
-	*register.OutDir = outDir
-	*register.ModuleName = moduleName
-	*register.RouterGroup = globalGroup
-	Gen(genGin{Name: "gin"})
+	*WorkDir = srcDir
+	*OutDir = outDir
+	*ModuleName = moduleName
+	*RouterGroup = globalGroup
+	Gen(engineGen{Name: "gin"})
 }
 
 // TestGen_PackageLevelGroup 验证包文档注释中的 @RouterGroup 对包内所有文件生效

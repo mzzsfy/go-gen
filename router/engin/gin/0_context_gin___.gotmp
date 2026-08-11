@@ -8,6 +8,8 @@ import (
 	"net/http"
 )
 
+var _ Ctx = (*GinCtx)(nil)
+
 type GinCtx struct {
 	baseCtx
 	r      *GinRouter

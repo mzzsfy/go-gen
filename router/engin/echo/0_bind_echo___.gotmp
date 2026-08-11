@@ -82,40 +82,7 @@ func bindMapWithTag(tag string, dst any, src map[string][]string) error {
 	if dv.Kind() != reflect.Pointer || dv.IsNil() {
 		return fmt.Errorf("echo: BindMultipleMap: dst must be non-nil pointer")
 	}
-	dv = dv.Elem()
-	if dv.Kind() != reflect.Struct {
-		return fmt.Errorf("echo: BindMultipleMap: dst must point to struct")
-	}
-	dt := dv.Type()
-	for i := 0; i < dt.NumField(); i++ {
-		field := dt.Field(i)
-		if !field.IsExported() {
-			continue
-		}
-		// 递归处理匿名字段
-		if field.Anonymous {
-			if err := bindMapValueWithTag(tag, dv.Field(i), src); err != nil {
-				return err
-			}
-			continue
-		}
-		name := field.Tag.Get(tag)
-		if name == "-" {
-			continue
-		}
-		name = strings.SplitN(name, ",", 2)[0]
-		if name == "" {
-			name = field.Name
-		}
-		values, ok := src[name]
-		if !ok || len(values) == 0 {
-			continue
-		}
-		if err := setFieldValue(dv.Field(i), values); err != nil {
-			return fmt.Errorf("bind field %s: %w", field.Name, err)
-		}
-	}
-	return nil
+	return bindMapValueWithTag(tag, dv.Elem(), src)
 }
 
 func bindMapValueWithTag(tag string, fv reflect.Value, src map[string][]string) error {

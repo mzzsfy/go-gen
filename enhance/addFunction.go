@@ -1,17 +1,18 @@
 package enhance
 
 import (
-	"github.com/mzzsfy/go-gen/register"
 	"os"
 	"path"
 	"strings"
+
+	"github.com/mzzsfy/go-gen/register"
 )
 
 func init() {
-	register.Register("enhance-register", genRegister)
+	register.Register("enhance-addFunction", addFunction)
 }
 
-func genRegister() {
+func addFunction() {
 	workDir := path.Clean(*register.WorkDir)
 	pkgName, structs, err := scanAnnotatedStructs(workDir, *FindFileRegex, *Annotation)
 	if err != nil {
@@ -24,28 +25,26 @@ func genRegister() {
 	if err != nil {
 		panic(err)
 	}
-	defer func() {
-		file.Write([]byte("}\n"))
-		file.Close()
-	}()
+	defer file.Close()
 	println("生成文件: " + workDir + "/" + *FileName)
 
-	leftString := "["
+	recvPrefix := ""
 	if *UsingPointers {
-		leftString += "*"
+		recvPrefix = "*"
 	}
 	var sb strings.Builder
 	sb.WriteString("//This is an auto-generated file, please do not edit it manually\n")
 	sb.WriteString("//这是自动生成的文件,请不要手动编辑\n\n")
-	sb.WriteString("package " + pkgName + "\n\nfunc init() {\n")
+	sb.WriteString("package " + pkgName + "\n")
 	for _, s := range structs {
-		sb.WriteString("	")
-		sb.WriteString(*FunctionName)
-		sb.WriteString(leftString)
+		sb.WriteString("\nfunc (")
+		sb.WriteString(recvPrefix)
 		sb.WriteString(s.Name)
-		sb.WriteString("]([]string{")
+		sb.WriteString(") ")
+		sb.WriteString(*FunctionName)
+		sb.WriteString("() []string {\n	return []string{")
 		sb.WriteString(strings.Join(s.Values, ","))
-		sb.WriteString("})\n")
+		sb.WriteString("}\n}\n")
 	}
 	file.Write([]byte(sb.String()))
 }

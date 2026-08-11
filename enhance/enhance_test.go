@@ -45,7 +45,7 @@ func TestGenRegister(t *testing.T) {
 
 	genRegister()
 
-	bs, err := os.ReadFile(filepath.Join(workDir, *register.FileName))
+	bs, err := os.ReadFile(filepath.Join(workDir, *FileName))
 	if err != nil {
 		t.Fatalf("读取生成文件失败: %v", err)
 	}
@@ -74,12 +74,12 @@ func TestAddFunction(t *testing.T) {
 	workDir := t.TempDir()
 	copyFixtures(t, workDir)
 	setupEnhanceFlags(t, workDir)
-	*register.FunctionName = "GetRelations"
-	*register.FileName = "0_addfunction.gen.go"
+	*FunctionName = "GetRelations"
+	*FileName = "0_addfunction.gen.go"
 
 	addFunction()
 
-	bs, err := os.ReadFile(filepath.Join(workDir, *register.FileName))
+	bs, err := os.ReadFile(filepath.Join(workDir, *FileName))
 	if err != nil {
 		t.Fatalf("读取生成文件失败: %v", err)
 	}
@@ -108,11 +108,11 @@ func setupEnhanceFlags(t *testing.T, workDir string) {
 	t.Helper()
 	*register.WorkDir = workDir
 	*register.OutDir = workDir
-	*register.Annotation = "@relation"
-	*register.FunctionName = "RegisterGenRelation"
-	*register.FileName = "0_register.gen.go"
-	*register.FindFileRegex = ".+.go"
-	*register.UsingPointers = true
+	*Annotation = "@relation"
+	*FunctionName = "RegisterGenRelation"
+	*FileName = "0_register.gen.go"
+	*FindFileRegex = ".+.go"
+	*UsingPointers = true
 }
 
 // TestGenRegister_SkipsUnannotated 验证非结构体类型被跳过, 未匹配注解的结构体无注册值
@@ -121,7 +121,7 @@ func TestGenRegister_SkipsUnannotated(t *testing.T) {
 	edgeDir = filepath.Clean(edgeDir)
 	setupEnhanceFlags(t, edgeDir)
 
-	genPath := filepath.Join(edgeDir, *register.FileName)
+	genPath := filepath.Join(edgeDir, *FileName)
 	// 清理可能残留的生成文件
 	os.Remove(genPath)
 	t.Cleanup(func() {
@@ -158,11 +158,11 @@ func TestGenRegister_UsingPointersFalse(t *testing.T) {
 	workDir := t.TempDir()
 	copyFixtures(t, workDir)
 	setupEnhanceFlags(t, workDir)
-	*register.UsingPointers = false
+	*UsingPointers = false
 
 	genRegister()
 
-	bs, err := os.ReadFile(filepath.Join(workDir, *register.FileName))
+	bs, err := os.ReadFile(filepath.Join(workDir, *FileName))
 	if err != nil {
 		t.Fatalf("读取生成文件失败: %v", err)
 	}
@@ -185,13 +185,13 @@ func TestAddFunction_UsingPointersFalse(t *testing.T) {
 	workDir := t.TempDir()
 	copyFixtures(t, workDir)
 	setupEnhanceFlags(t, workDir)
-	*register.UsingPointers = false
-	*register.FunctionName = "GetRelations"
-	*register.FileName = "0_addfunction.gen.go"
+	*UsingPointers = false
+	*FunctionName = "GetRelations"
+	*FileName = "0_addfunction.gen.go"
 
 	addFunction()
 
-	bs, err := os.ReadFile(filepath.Join(workDir, *register.FileName))
+	bs, err := os.ReadFile(filepath.Join(workDir, *FileName))
 	if err != nil {
 		t.Fatalf("读取生成文件失败: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestAddFunction_UsingPointersFalse(t *testing.T) {
 func TestGenRegister_CustomAnnotation(t *testing.T) {
 	workDir := t.TempDir()
 	setupEnhanceFlags(t, workDir)
-	*register.Annotation = "@mytag"
+	*Annotation = "@mytag"
 
 	// 创建带 @mytag 注解的 fixture
 	src := `package src
@@ -227,7 +227,7 @@ type Order struct{}
 
 	genRegister()
 
-	bs, err := os.ReadFile(filepath.Join(workDir, *register.FileName))
+	bs, err := os.ReadFile(filepath.Join(workDir, *FileName))
 	if err != nil {
 		t.Fatalf("读取生成文件失败: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestGenRegister_MultipleValues(t *testing.T) {
 
 	genRegister()
 
-	bs, err := os.ReadFile(filepath.Join(workDir, *register.FileName))
+	bs, err := os.ReadFile(filepath.Join(workDir, *FileName))
 	if err != nil {
 		t.Fatalf("读取生成文件失败: %v", err)
 	}
