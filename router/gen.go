@@ -23,6 +23,7 @@ func Gen(gen GenRouter) {
 	}
 	outDir := path.Clean(*OutDir)
 	baseModuleName := resolveModuleName(workDir)
+	checkUsage(workDir, outDir, baseModuleName)
 	// workImportBase: 包 import 路径前缀, 基于 workDir 相对 module root 的偏移
 	// outImportBase: routers 包 import 路径前缀, 基于 outDir 相对 module root 的偏移
 	workImportBase, outImportBase := computeImportBase(workDir, outDir, baseModuleName)
@@ -64,6 +65,26 @@ func resolveModuleName(workDir string) string {
 		return *ModuleName
 	}
 	return findModuleName(workDir)
+}
+
+// checkUsage 检测常见参数误用, 打印警告
+func checkUsage(workDir, outDir, moduleName string) {
+	goModName := findModuleName(workDir)
+	// 场景1: -moduleName 与 go.mod 不一致
+	if *ModuleName != "" && goModName != "" && goModName != *ModuleName {
+		fmt.Printf("警告: -moduleName=%q 与 go.mod 声明的 %q 不一致\n", *ModuleName, goModName)
+		if strings.HasPrefix(*ModuleName, goModName+"/") {
+			fmt.Printf("      -moduleName 应为 go.mod 的 module 名, 子目录偏移由 -workDir 控制\n")
+			fmt.Printf("      建议使用: -moduleName=%s -workDir=%s\n", goModName, strings.TrimPrefix(*ModuleName, goModName+"/"))
+		} else {
+			fmt.Printf("      如果是故意覆盖请忽略, 否则建议: -moduleName=%s\n", goModName)
+		}
+	}
+	// 场景2: 未指定 -moduleName 且找不到 go.mod
+	if *ModuleName == "" && goModName == "" {
+		fmt.Printf("警告: 未找到 go.mod, 且未指定 -moduleName, import 路径可能不正确\n")
+		fmt.Printf("      建议: 指定 -moduleName=<你的模块名>\n")
+	}
 }
 
 // computeImportBase 计算 import 路径前缀, 包含目录相对 module root 的偏移
