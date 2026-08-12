@@ -34,9 +34,12 @@ func Gen(gen GenRouter) {
 	mustWriteCoreFiles(outDir)
 	fmt.Printf("已写入核心文件\n")
 
-	pkgName := outImportBase
-	if i := strings.LastIndex(outImportBase, "/"); i > -1 {
-		pkgName = outImportBase[i+1:]
+	pkgName := detectPackageName(outDir)
+	if pkgName == "" {
+		pkgName = outImportBase
+		if i := strings.LastIndex(outImportBase, "/"); i > -1 {
+			pkgName = outImportBase[i+1:]
+		}
 	}
 	globalCtx := GlobalCtx{
 		PackageName:     pkgName,
@@ -367,6 +370,27 @@ func mustReadCoreTemplate(name string) string {
 // commentText 去除行注释前缀并 trim
 func commentText(text string) string {
 	return strings.TrimSpace(strings.TrimPrefix(text, "//"))
+}
+
+// detectPackageName 从目录中已有 .go 文件读取 package 声明名
+// 无可解析文件时返回空, 由调用方回退到路径推导
+func detectPackageName(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+			continue
+		}
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, filepath.Join(dir, entry.Name()), nil, parser.PackageClauseOnly)
+		if err != nil {
+			continue
+		}
+		return f.Name.Name
+	}
+	return ""
 }
 
 func must(err error) {

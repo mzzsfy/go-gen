@@ -54,6 +54,12 @@ type GenRouter interface {
 	AfterGenRouter(GlobalCtx) error
 }
 
+// isGeneratedFile 判断文件名是否为 go-gen 生成文件
+// 生成文件特征: 0_ 前缀 + ___.go 后缀
+func isGeneratedFile(name string) bool {
+	return strings.HasPrefix(name, "0_") && strings.HasSuffix(name, "___"+".go")
+}
+
 // findModuleRoot 从 dir 向上递归查找 go.mod 所在目录
 func findModuleRoot(dir string) string {
 	abs, err := filepath.Abs(dir)
@@ -113,6 +119,10 @@ func ParseDir(fset *token.FileSet, pathStr string, filter func(fs.FileInfo) bool
 			continue
 		}
 		if !strings.HasSuffix(d.Name(), ".go") {
+			continue
+		}
+		// 跳过 go-gen 生成文件, 避免二次解析和误识别路由
+		if isGeneratedFile(d.Name()) {
 			continue
 		}
 		if filter != nil {

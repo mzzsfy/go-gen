@@ -118,6 +118,66 @@ func Handler() {}
 	}
 }
 
+// TestBug3_HyphenatedModuleName_PackageName 验证 module name 含连字符时
+// import 文件包名使用 outDir 实际包名而非 module name 派生
+func TestBug3_HyphenatedModuleName_PackageName(t *testing.T) {
+	srcDir := createTempSrc(t, map[string]string{
+		"go.mod": "module im-go\n\ngo 1.22\n",
+		"main.go": `package main
+
+func main() {}
+`,
+		"api/handler.go": `package api
+
+// Handler
+// @Router /test[GET]
+func Handler() {}
+`,
+	})
+	*WorkDir = srcDir
+	*OutDir = srcDir
+	*ModuleName = "im-go"
+	*RouterGroup = ""
+	Gen(engineGen{Name: "gin"})
+
+	importFile := filepath.Join(srcDir, "0_import___.go")
+	bs, err := os.ReadFile(importFile)
+	if err != nil {
+		t.Fatalf("读取 import 文件失败: %v", err)
+	}
+	content := string(bs)
+	if !strings.Contains(content, "package main") {
+		t.Errorf("包名应使用 outDir 实际包名 main, 内容:\n%s", content)
+	}
+	if strings.Contains(content, "package im-go") {
+		t.Errorf("不应使用含连字符的 module name 作为包名, 内容:\n%s", content)
+	}
+}
+
+// TestBug3_IdempotentRun 两次 Gen 不应 panic (生成的文件不应干扰二次解析)
+func TestBug3_IdempotentRun(t *testing.T) {
+	srcDir := createTempSrc(t, map[string]string{
+		"go.mod": "module im-go\n\ngo 1.22\n",
+		"main.go": `package main
+
+func main() {}
+`,
+		"api/handler.go": `package api
+
+// Handler
+// @Router /test[GET]
+func Handler() {}
+`,
+	})
+	*WorkDir = srcDir
+	*OutDir = srcDir
+	*ModuleName = "im-go"
+	*RouterGroup = ""
+
+	Gen(engineGen{Name: "gin"})
+	Gen(engineGen{Name: "gin"}) // 第二次不应 panic
+}
+
 // TestFindModuleRoot_WalksUp 验证 findModuleRoot 向上递归查找
 func TestFindModuleRoot_WalksUp(t *testing.T) {
 	moduleRoot := t.TempDir()
